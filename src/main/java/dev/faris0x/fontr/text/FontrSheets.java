@@ -60,6 +60,8 @@ public final class FontrSheets {
     private final float letterSpacing;
     private final float embolden;
     private final float scriptScale;
+    private final float scriptOffset;
+    private final float scriptHeight;
     private final boolean debug;
 
     private final Map<Style, byte[]> styledPng = new HashMap<Style, byte[]>();
@@ -69,7 +71,7 @@ public final class FontrSheets {
 
     public FontrSheets(FontrFont font, int resolution, int styledResolution, boolean trueStyles,
                        Path cacheDir, BaseProvider base, float letterSpacing, float embolden,
-                       float scriptScale, boolean debug) {
+                       float scriptScale, float scriptOffset, float scriptHeight, boolean debug) {
         this.font = font;
         this.resolution = resolution;
         this.styledResolution = styledResolution;
@@ -78,7 +80,9 @@ public final class FontrSheets {
         this.base = base;
         this.letterSpacing = letterSpacing;
         this.embolden = embolden;
-        this.scriptScale = Math.max(0.5F, Math.min(2.0F, scriptScale));
+        this.scriptScale = Math.max(0.5F, Math.min(2.5F, scriptScale));
+        this.scriptOffset = Math.max(-6.0F, Math.min(6.0F, scriptOffset));
+        this.scriptHeight = Math.max(0.5F, Math.min(2.0F, scriptHeight));
         this.debug = debug;
         try {
             Files.createDirectories(cacheDir);
@@ -221,7 +225,7 @@ public final class FontrSheets {
             int advance = advance(codepoint);
             graphics.setClip(x, y, cell, cell);
             font.drawGlyph(graphics, codepoint, scale, x, y + baseline,
-                (float) (advance - 1) * scale, embolden, style, y, y + cell, 0.8F);
+                (float) (advance - 1) * scale, embolden, style, y, y + cell, 0.8F, 1.0F);
             graphics.setClip(null);
 
             // readFontTexture() derives advances from the rightmost non-transparent
@@ -266,7 +270,7 @@ public final class FontrSheets {
             graphics.setColor(Color.WHITE);
             font.drawGlyph(graphics, codepoint, fit.scale, x, y + fit.baseline,
                 (float) fit.advances[offset] * 2.0F, embolden, Style.REGULAR, y, y + UNICODE_CELL,
-                0.5F);
+                0.5F, scriptHeight);
             graphics.setClip(null);
         }
         graphics.dispose();
@@ -346,7 +350,8 @@ public final class FontrSheets {
         blockSize *= scriptScale;
         float scale = Math.max(0.1F, blockSize / Math.max(1.0F, font.pointSize()));
         float baseline = total > 0.0F ? (pAscent / 100.0F) * blockSize : font.baseline() * 2.0F;
-        baseline = Math.max(0.0F, Math.min((float) UNICODE_CELL, baseline));
+        baseline += scriptOffset * 2.0F;
+        baseline = Math.max(-8.0F, Math.min((float) UNICODE_CELL + 8.0F, baseline));
 
         BlockFit fit = new BlockFit(scale, baseline);
         for (int offset = 0; offset < 256; offset++) {

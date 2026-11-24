@@ -10,7 +10,8 @@
 		"StyleGlyphMixin",
 		"ArgentumTextBatcherMixin",
 		"HudTextArabicMixin",
-		"EvergreenLabelMixin"
+		"EvergreenLabelMixin",
+		"VanillaHudFontMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

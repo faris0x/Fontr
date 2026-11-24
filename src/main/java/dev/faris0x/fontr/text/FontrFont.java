@@ -255,7 +255,8 @@ public final class FontrFont {
      */
     public void drawGlyph(Graphics2D graphics, int codepoint, float scale, float x, float y,
                           float maxAdvance, float embolden, Style style,
-                          float cellTop, float cellBottom, float squeezeFloor) {
+                          float cellTop, float cellBottom, float squeezeFloor,
+                          float verticalScale) {
         Font chosen = faceFor(codepoint, style);
         Font font = chosen.deriveFont(Font.PLAIN, chosen.getSize2D() * scale);
         graphics.setFont(font);
@@ -304,6 +305,9 @@ public final class FontrFont {
         Shape clip = graphics.getClip();
         java.awt.geom.AffineTransform old = graphics.getTransform();
         graphics.translate(x + shift, y);
+        if (verticalScale != 1.0F) {
+            graphics.scale(1.0F, verticalScale);
+        }
         if (squeeze != 1.0F) {
             graphics.scale(squeeze, squeeze);
         }

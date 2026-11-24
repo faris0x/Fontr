@@ -84,7 +84,9 @@ Changing a setting reloads resources automatically.
 - **Bold / Italic / Bold-italic font** — optional; empty auto-detects faces.
 - **Glyph scale** — scales the fitted size. `1.0` is the largest size that fits
   the 8px line without clipping; higher values may clip.
-- **Script scale** — scales unicode blocks (Arabic/CJK/…) relative to their fit.
+- **Script scale** — scales unicode blocks (Arabic/CJK/…) relative to their fit (0.8–2.0).
+- **Script offset** — moves unicode blocks up/down inside the line.
+- **Script height** — stretches unicode blocks vertically around their baseline.
 - **Letter spacing** — extra pixels between glyphs; negative tightens text. The
   default includes vanilla's built-in one-pixel gap.
 - **Letter spacing** — extra pixels between glyphs; negative tightens text.
@@ -118,6 +120,9 @@ This repository does not include the font. Do not redistribute it.
 - Argentum integration is best-effort: it targets Argentum's internal batcher at
   runtime and is compiled against signature-only stubs (no Argentum code is
   shipped). If a future Argentum changes the batcher, the feature disables itself.
+- VanillaHud captures vanilla scoreboard/tablist runs with their original x
+  positions and re-draws them. Fontr forces those VanillaHud instances onto the
+  Minecraft text path so the captured positions and glyph advances agree.
 - PolyCompose's accented/non-Latin European sheets (`accented.png`,
   `nonlatin_european.png`) are not regenerated yet; those characters still come
   from the selected resource pack.

@@ -106,11 +106,31 @@ public final class FontrConfig extends Config {
         title = "Script scale",
         description = "Scales unicode blocks (Arabic, CJK, ...) relative to their fitted size. 1.0 is the default fit.",
         min = 0.8F,
-        max = 1.5F,
+        max = 2.0F,
         step = 0.05F,
         category = CATEGORY_FONT
     )
     public static float scriptScale = 1.0F;
+
+    @Slider(
+        title = "Script offset",
+        description = "Moves unicode blocks (Arabic/CJK/...) up or down inside the line, in pixels.",
+        min = -3.0F,
+        max = 3.0F,
+        step = 0.25F,
+        category = CATEGORY_FONT
+    )
+    public static float scriptOffset = 0.0F;
+
+    @Slider(
+        title = "Script height",
+        description = "Stretches unicode blocks vertically around their baseline.",
+        min = 0.8F,
+        max = 1.5F,
+        step = 0.05F,
+        category = CATEGORY_FONT
+    )
+    public static float scriptHeight = 1.0F;
 
     @Switch(
         title = "Antialiasing",
@@ -203,6 +223,8 @@ public final class FontrConfig extends Config {
         FontrSettings.letterSpacing = letterSpacing;
         FontrSettings.embolden = embolden;
         FontrSettings.scriptScale = scriptScale;
+        FontrSettings.scriptOffset = scriptOffset;
+        FontrSettings.scriptHeight = scriptHeight;
         FontrSettings.antialias = antialias;
         FontrSettings.mipmaps = mipmaps;
         FontrSettings.arabicShaping = arabicShaping;
