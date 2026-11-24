@@ -69,10 +69,18 @@ public final class FontEnumInjector {
                     nextEntries.add(value);
                 }
                 nextEntries.add(fontr);
-                setStatic(entriesField, nextEntries, unsafe);
-                if (entries != null) {
-                    LOGGER.info("[Fontr] Updated Kotlin enum entries");
+                Object entryList = nextEntries;
+                try {
+                    Class<?> enumEntries = Class.forName("kotlin.enums.EnumEntriesKt");
+                    Object created = enumEntries.getMethod("enumEntries", List.class)
+                        .invoke(null, nextEntries);
+                    if (created != null) {
+                        entryList = created;
+                    }
+                } catch (Throwable ignored) {
                 }
+                setStatic(entriesField, entryList, unsafe);
+                LOGGER.info("[Fontr] Updated Kotlin enum entries");
             } catch (NoSuchFieldException ignored) {
             }
 
