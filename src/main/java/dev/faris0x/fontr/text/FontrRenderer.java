@@ -6,6 +6,8 @@ import net.minecraft.client.render.vertex.DefaultVertexFormat;
 import net.minecraft.client.render.vertex.Tesselator;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
+import dev.faris0x.fontr.FontrEngine;
+import dev.faris0x.fontr.config.FontrConfig;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -79,8 +81,18 @@ public final class FontrRenderer {
         Tesselator tessellator = Tesselator.getInstance();
         BufferBuilder buffer = tessellator.getBuffer();
 
+        boolean debugLogged = false;
         for (Map.Entry<Integer, List<Draw>> page : byTexture.entrySet()) {
             GlStateManager.bindTexture(page.getKey());
+            if (FontrConfig.debug && !debugLogged && !page.getValue().isEmpty()) {
+                debugLogged = true;
+                Draw first = page.getValue().get(0);
+                FontrEngine.INSTANCE.log("Draw page: bound=" + GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D)
+                    + " enabled=" + GL11.glIsEnabled(GL11.GL_TEXTURE_2D)
+                    + " tex=" + first.entry.texture
+                    + " uv=" + first.entry.u1 + "," + first.entry.v1 + ".." + first.entry.u2 + "," + first.entry.v2
+                    + " xy=" + first.x1 + "," + first.y1 + ".." + first.x2 + "," + first.y2);
+            }
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
             for (Draw draw : page.getValue()) {
                 FontrAtlas.Entry e = draw.entry;

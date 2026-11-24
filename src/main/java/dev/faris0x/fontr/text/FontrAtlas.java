@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.imageio.ImageIO;
+import org.lwjgl.opengl.GL13;
 import java.io.File;
 import java.nio.file.Path;
 
@@ -118,6 +119,25 @@ public final class FontrAtlas {
                 File out = directory.resolve("atlas-debug-" + i + ".png").toFile();
                 ImageIO.write(pages.get(i).image, "png", out);
                 System.out.println("[Fontr] atlas dump " + out);
+                Page page = pages.get(i);
+                GlStateManager.activeTexture(GL13.GL_TEXTURE0);
+                GlStateManager.bindTexture(page.texture);
+                ByteBuffer buffer = BufferUtils.createByteBuffer(SIZE * SIZE * 4);
+                GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
+                BufferedImage gl = new BufferedImage(SIZE, SIZE, BufferedImage.TYPE_INT_ARGB);
+                for (int y = 0; y < SIZE; y++) {
+                    for (int x = 0; x < SIZE; x++) {
+                        int off = (y * SIZE + x) * 4;
+                        int r = buffer.get(off) & 0xFF;
+                        int g = buffer.get(off + 1) & 0xFF;
+                        int b = buffer.get(off + 2) & 0xFF;
+                        int a = buffer.get(off + 3) & 0xFF;
+                        gl.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+                    }
+                }
+                File glOut = directory.resolve("atlas-gl-debug-" + i + ".png").toFile();
+                ImageIO.write(gl, "png", glOut);
+                System.out.println("[Fontr] GL atlas dump " + glOut + " tex=" + page.texture);
             }
         } catch (Throwable t) {
             System.out.println("[Fontr] atlas dump failed: " + t);
@@ -206,6 +226,10 @@ public final class FontrAtlas {
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
             GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, x, y, width, height,
                                  GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
+            int error = GL11.glGetError();
+            if (error != 0) {
+                System.out.println("[Fontr] GL error after glyph upload: " + error);
+            }
         }
     }
 
