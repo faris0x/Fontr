@@ -227,6 +227,7 @@ public final class FontrEngine {
             if (FontrConfig.applyToPolyCompose) {
                 PolyComposeFontBridge.install(path, FontrConfig.pixelSnap);
             }
+            dev.faris0x.fontr.compat.HudFontSelector.install();
             dev.faris0x.fontr.compat.HudFontSelector.refreshLabel();
         } catch (Throwable t) {
             font = null;

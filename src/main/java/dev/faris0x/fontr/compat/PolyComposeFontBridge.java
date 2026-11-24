@@ -103,6 +103,7 @@ public final class PolyComposeFontBridge {
         if ((++tickCounter & 0xFF) != 0) {
             return;
         }
+        HudFontSelector.install();
         try {
             Class<?> manager = Class.forName(MANAGER);
             Object instance = manager.getField("INSTANCE").get(null);

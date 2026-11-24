@@ -35,13 +35,13 @@ public final class HudFontSelector {
         if (installed) {
             return;
         }
-        installed = true;
         try {
             ConfigManager.addTreeRegistrationListener(HudFontSelector::apply);
             for (Tree tree : ConfigManager.core().trees()) {
                 apply(tree);
             }
             PolyComposeFontBridge.reassert();
+            installed = true;
             LOGGER.info("[Fontr] HUD font selector ready");
         } catch (Throwable t) {
             LOGGER.warn("[Fontr] Could not hook HUD font selector: " + t);
