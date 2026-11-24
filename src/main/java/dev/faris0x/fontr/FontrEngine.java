@@ -1,5 +1,6 @@
 package dev.faris0x.fontr;
 
+import dev.faris0x.fontr.compat.PolyComposeFontBridge;
 import dev.faris0x.fontr.config.FontrConfig;
 import dev.faris0x.fontr.text.FontrAtlas;
 import dev.faris0x.fontr.text.FontrFont;
@@ -107,6 +108,8 @@ public final class FontrEngine {
             return 0;
         }
 
+        PolyComposeFontBridge.tick();
+
         FontrLayout layout = layout(text);
         if (layout == null) {
             return null;
@@ -198,6 +201,9 @@ public final class FontrEngine {
                                   FontrConfig.pixelSnap, FontrConfig.arabicShaping,
                                   FontrConfig.fallbackFontName());
             log("Loaded font " + path + " at " + FontrConfig.fontSize + "px");
+            if (FontrConfig.applyToPolyCompose) {
+                PolyComposeFontBridge.install(path, FontrConfig.pixelSnap);
+            }
         } catch (Throwable t) {
             font = null;
             log("Could not load font: " + t);
@@ -208,7 +214,8 @@ public final class FontrEngine {
         return FontrConfig.fontPathOrDefault() + '|' + FontrConfig.fontSize + '|'
             + FontrConfig.antialias + '|' + FontrConfig.pixelSnap + '|'
             + FontrConfig.arabicShaping + '|' + FontrConfig.fallback + '|'
-            + FontrConfig.allowResourcePackFontOverride;
+            + FontrConfig.allowResourcePackFontOverride + '|'
+            + FontrConfig.applyToPolyCompose;
     }
 
     private static Path resolveFontPath(String value) {

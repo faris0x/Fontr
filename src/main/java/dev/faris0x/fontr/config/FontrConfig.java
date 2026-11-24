@@ -86,6 +86,13 @@ public final class FontrConfig extends Config {
     public static String fallback = "System SansSerif";
 
     @Switch(
+        title = "Apply to OneConfig UI / HUD",
+        description = "Register Fontr with PolyCompose/Skia so OneConfig HUD modules and Compose-based text also use it.",
+        category = CATEGORY_COMPAT
+    )
+    public static boolean applyToPolyCompose = true;
+
+    @Switch(
         title = "Allow resource pack font override",
         description = "If the active resource pack provides a bitmap font, let it win and render that text with vanilla instead of Fontr.",
         category = CATEGORY_COMPAT

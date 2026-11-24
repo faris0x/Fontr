@@ -165,6 +165,10 @@ public final class FontrLayout {
                 float x = rtl
                     ? (float) (pen + (runWidth - (position + glyphAdvance)))
                     : (float) (pen + position);
+                // The rasterised bitmap starts at bounds.x relative to the glyph
+                // origin, not at the origin itself. Without this every glyph is
+                // drawn shifted left by its left side bearing.
+                x += bounds.x;
 
                 out.add(new Glyph(originalIndex, runFont, styleAtGlyph, vector.getGlyphCode(i),
                                   x, bounds.y, bounds.width, bounds.height, glyphAdvance));

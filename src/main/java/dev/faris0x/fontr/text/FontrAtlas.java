@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.imageio.ImageIO;
-import org.lwjgl.opengl.GL13;
 import java.io.File;
 import java.nio.file.Path;
 
@@ -120,7 +119,9 @@ public final class FontrAtlas {
                 ImageIO.write(pages.get(i).image, "png", out);
                 System.out.println("[Fontr] atlas dump " + out);
                 Page page = pages.get(i);
+                GL13.glActiveTexture(GL13.GL_TEXTURE0);
                 GlStateManager.activeTexture(GL13.GL_TEXTURE0);
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, page.texture);
                 GlStateManager.bindTexture(page.texture);
                 ByteBuffer buffer = BufferUtils.createByteBuffer(SIZE * SIZE * 4);
                 GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
@@ -196,6 +197,7 @@ public final class FontrAtlas {
             IntBuffer ids = BufferUtils.createIntBuffer(1);
             GL11.glGenTextures(ids);
             texture = ids.get(0);
+            GL13.glActiveTexture(GL13.GL_TEXTURE0);
             GlStateManager.activeTexture(GL13.GL_TEXTURE0);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
             GlStateManager.bindTexture(texture);
@@ -222,6 +224,7 @@ public final class FontrAtlas {
             }
             buffer.flip();
 
+            GL13.glActiveTexture(GL13.GL_TEXTURE0);
             GlStateManager.activeTexture(GL13.GL_TEXTURE0);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
             GlStateManager.bindTexture(texture);
