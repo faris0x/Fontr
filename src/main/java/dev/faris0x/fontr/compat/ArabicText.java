@@ -160,6 +160,24 @@ public final class ArabicText {
         return false;
     }
 
+    /** Arabic base letters or their presentation forms (already-shaped text). */
+    public static boolean containsArabicVisual(String text) {
+        if (text == null) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if ((c >= '\u0600' && c <= '\u06FF')
+                || (c >= '\u0750' && c <= '\u077F')
+                || (c >= '\u08A0' && c <= '\u08FF')
+                || (c >= '\uFB50' && c <= '\uFDFF')
+                || (c >= '\uFE70' && c <= '\uFEFF')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean containsArabic(String text) {
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
