@@ -11,8 +11,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public abstract class HudTextFontMixin {
     @Redirect(
         method = "HudRunText",
+        remap = false,
         at = @At(
             value = "INVOKE",
+            remap = false,
             target = "Lorg/polyfrost/oneconfig/api/hud/v1/Hud;getFont()Lorg/polyfrost/oneconfig/api/hud/v1/Font;"
         )
     )
