@@ -1,6 +1,6 @@
 package dev.faris0x.fontr.compat;
 
-import dev.faris0x.fontr.config.FontrConfig;
+import dev.faris0x.fontr.FontrSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -8,148 +8,95 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Registers the Fontr TTF with OneClient's PolyCompose/Skia text stack.
+ * Registers the Fontr TTF with OneConfig's PolyCompose renderer so Compose-based
+ * UI (the mod menu, OneConfig HUD modules) matches the in-game font.
  *
- * <p>PolyCompose keeps its own font registry ({@code FontManager}) and resolves
- * Compose text through it. Vanilla {@code TextRenderer} hooks cannot reach that
- * path, which is why OneConfig UI/HUD modules kept their old fonts. Everything
- * here is reflective so Fontr still builds and runs without PolyCompose.</p>
+ * <p>This is additive: vanilla/Argentum/Cera text is served through the
+ * generated font resources, not through this bridge.</p>
  */
 public final class PolyComposeFontBridge {
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
     private static final String MANAGER = "org.polyfrost.compose.render.FontManager";
-    private static final String DEFAULT_KEY = "__default__";
     private static final String FONTR_KEY = "fontr";
 
-    /**
-     * OneConfig exposes its HUD font dropdown as Minecraft/Poppins. Enum values
-     * cannot be added at runtime, so Fontr occupies the Poppins slot: every
-     * Poppins variant resolves to the user's TTF. The dropdown label is changed
-     * separately by {@link HudFontSelector}.
-     */
-    private static final String[] FAMILIES = {
-        "poppins", "poppins-italic",
+    private static final String[] ALIASES = {
+        "poppins", "poppins-italic", "poppins-regular",
         "poppins-thin", "poppins-thin-italic",
         "poppins-medium", "poppins-medium-italic",
-        "poppins-semibold", "poppins-bold", "poppins-bold-italic",
+        "poppins-semibold", "poppins-semibold-italic",
+        "poppins-bold", "poppins-bold-italic",
         "poppins-black", "poppins-black-italic"
     };
 
     private static volatile boolean installed;
     private static volatile boolean unavailable;
-    private static byte[] installedBytes;
-    private static Path installedPath;
-    private static int tickCounter;
 
     private PolyComposeFontBridge() {
     }
 
-    /** Called after a font has been loaded from disk. */
-    public static void install(Path path, boolean pixelAligned) {
-        if (!FontrConfig.applyToPolyCompose) {
+    public static void install(Path path) {
+        if (!FontrSettings.applyToPolyCompose || installed) {
             return;
         }
         try {
-            installedPath = path;
             byte[] bytes = Files.readAllBytes(path);
-            install(bytes, pixelAligned);
-        } catch (Throwable t) {
-            log("PolyCompose could not read font: " + t);
-        }
-    }
+            Class<?> managerClass = Class.forName(MANAGER);
+            Object manager = managerClass.getField("INSTANCE").get(null);
+            Method register = managerClass.getMethod("register", String.class, byte[].class, boolean.class);
+            Method setDefault = managerClass.getMethod("setDefault", String.class);
 
-    private static synchronized void install(byte[] bytes, boolean pixelAligned) {
-        if (!FontrConfig.applyToPolyCompose) {
-            return;
-        }
-        try {
-            Class<?> manager = Class.forName(MANAGER);
-            Field instanceField = manager.getField("INSTANCE");
-            Object instance = instanceField.get(null);
-            Method register = manager.getMethod("register", String.class, byte[].class, boolean.class);
-            Method setDefault = manager.getMethod("setDefault", String.class);
-
-            register.invoke(instance, FONTR_KEY, bytes, pixelAligned);
-            for (String family : FAMILIES) {
-                register.invoke(instance, family, bytes, pixelAligned);
+            register.invoke(manager, FONTR_KEY, bytes, false);
+            for (String alias : ALIASES) {
+                register.invoke(manager, alias, bytes, false);
             }
-            setDefault.invoke(instance, FONTR_KEY);
-
-            installedBytes = bytes;
+            setDefault.invoke(manager, FONTR_KEY);
             installed = true;
-            unavailable = false;
-            log("Registered Fontr with PolyCompose (pixelAligned=" + pixelAligned + ")");
+            LOGGER.info("[Fontr] Registered font with PolyCompose");
         } catch (ClassNotFoundException e) {
             unavailable = true;
-            if (!installed) {
-                log("PolyCompose not present; skipping Compose font registration");
-            }
+            LOGGER.info("[Fontr] PolyCompose not present; skipping UI font registration");
         } catch (Throwable t) {
-            log("PolyCompose font registration failed: " + t);
+            LOGGER.warn("[Fontr] PolyCompose font registration failed: " + t);
         }
     }
 
-    /**
-     * Cheap watchdog. OneClient can call {@code setDefault} later during startup,
-     * which would silently restore its bundled font. Called from the render path;
-     * only performs reflection every N calls.
-     */
-    public static void tick() {
-        if (!installed || unavailable || !FontrConfig.applyToPolyCompose) {
-            return;
-        }
-        if ((++tickCounter & 0xFF) != 0) {
-            return;
-        }
-        HudFontSelector.install();
-        try {
-            Class<?> manager = Class.forName(MANAGER);
-            Object instance = manager.getField("INSTANCE").get(null);
-            Method fontData = manager.getMethod("fontData", String.class);
-            boolean changed = fontData.invoke(instance, DEFAULT_KEY) != installedBytes;
-            if (changed) {
-                manager.getMethod("setDefault", String.class).invoke(instance, FONTR_KEY);
-                log("Re-asserted Fontr as PolyCompose default font");
-            }
-            // PolyCompose registers Inter after mods initialise. If that
-            // replaced any of our aliases, put them back.
-            Method register = manager.getMethod("register", String.class, byte[].class, boolean.class);
-            for (String family : FAMILIES) {
-                if (fontData.invoke(instance, family) != installedBytes) {
-                    register.invoke(instance, family, installedBytes, FontrConfig.pixelSnap);
-                    changed = true;
-                }
-            }
-            if (changed) {
-                log("Re-asserted Fontr PolyCompose font aliases");
-            }
-        } catch (Throwable ignored) {
-            unavailable = true;
-        }
-    }
-
-    /** Re-register all aliases using the last installed TTF. */
-    public static void reassert() {
-        byte[] bytes = installedBytes;
-        if (bytes != null) {
-            install(bytes, FontrConfig.pixelSnap);
-        }
-    }
-
-    /** True when PolyCompose has been found and the font registered. */
     public static boolean isInstalled() {
         return installed;
     }
 
-    public static Path installedPath() {
-        return installedPath;
-    }
-
-    private static void log(String message) {
-        if (FontrConfig.debug) {
-            LOGGER.info("[Fontr] " + message);
+    /** Re-registers aliases after a resource reload, in case another mod replaced them. */
+    public static void reassert(Path path) {
+        if (!installed || unavailable || !FontrSettings.applyToPolyCompose) {
+            return;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(path);
+            Class<?> managerClass = Class.forName(MANAGER);
+            Object manager = managerClass.getField("INSTANCE").get(null);
+            Method fontData = managerClass.getMethod("fontData", String.class);
+            Method register = managerClass.getMethod("register", String.class, byte[].class, boolean.class);
+            List<String> names = new ArrayList<String>();
+            names.add(FONTR_KEY);
+            for (String alias : ALIASES) {
+                names.add(alias);
+            }
+            boolean changed = false;
+            for (String name : names) {
+                Object existing = fontData.invoke(manager, name);
+                if (existing != bytes) {
+                    register.invoke(manager, name, bytes, false);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                LOGGER.info("[Fontr] Re-registered PolyCompose aliases");
+            }
+        } catch (Throwable t) {
+            unavailable = true;
         }
     }
 }

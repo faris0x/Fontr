@@ -1,247 +1,234 @@
 package dev.faris0x.fontr;
 
+import dev.faris0x.fontr.compat.FontrResource;
 import dev.faris0x.fontr.compat.PolyComposeFontBridge;
-import dev.faris0x.fontr.config.FontrConfig;
-import dev.faris0x.fontr.text.FontrAtlas;
 import dev.faris0x.fontr.text.FontrFont;
-import dev.faris0x.fontr.text.FontrLayout;
-import dev.faris0x.fontr.text.FontrRenderer;
+import dev.faris0x.fontr.text.FontrSheets;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.resource.pack.ResourcePack;
-import net.minecraft.client.resource.pack.ResourcePacks;
+import net.minecraft.client.resource.Resource;
+import net.minecraft.client.resource.manager.ResourceManager;
 import net.minecraft.resource.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
+import java.security.MessageDigest;
+import java.util.Locale;
+import java.util.stream.Stream;
 
 /**
- * Runtime facade used by the TextRenderer mixin. Measure/layout paths are
- * THREAD-SAFE and never touch OpenGL; rasterisation happens only in render().
+ * Runtime facade for the resource-level font override.
+ *
+ * <p>Fontr does not hook any text renderer. It replaces the resources every
+ * 1.8.9 renderer already reads ({@code font/ascii.png},
+ * {@code font/unicode_page_XX.png} and {@code font/glyph_sizes.bin}) with sheets
+ * rasterised from the selected TTF. Vanilla, Argentum's batcher, Cera and
+ * PolyCompose therefore all consume the same glyphs.</p>
  */
 public final class FontrEngine {
     public static final FontrEngine INSTANCE = new FontrEngine();
+
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
+    private static final String FONT_ROOT = "minecraft:textures/font/";
+    private static final String GLYPH_SIZES = "minecraft:textures/font/glyph_sizes.bin";
+    private static final String ASCII = "minecraft:textures/font/ascii.png";
+    private static final String UNICODE = "minecraft:textures/font/unicode_page_";
 
-    private static final int MAX_LAYOUTS = 4096;
-    private static final long RESOURCE_PACK_CACHE_MS = 1000L;
+    private static final ThreadLocal<Boolean> INTERNAL_READ =
+        ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    private final Map<String, FontrLayout> layouts = Collections.synchronizedMap(
-        new LinkedHashMap<String, FontrLayout>(256, 0.75F, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<String, FontrLayout> eldest) {
-                return size() > MAX_LAYOUTS;
-            }
-        });
+    private final Object lock = new Object();
 
-    private volatile FontrFont font;
-    private volatile FontrAtlas atlas;
-    private final Set<String> loggedLocations = new HashSet<String>();
-    private boolean atlasDumped;
-    private String loadedSettings = "";
-
-    private boolean resourcePackOverride;
-    private volatile long resourcePackCheckedAt;
-    private volatile boolean lastPackResult;
+    private volatile String loadedKey = "";
+    private volatile FontrSheets sheets;
+    private volatile java.nio.file.Path loadedPath;
+    private volatile Runnable settingsPoller;
+    private volatile ResourceManager lastManager;
+    private volatile boolean pendingReload;
+    private volatile int tickCounter;
+    private volatile boolean loggedResourceHit;
 
     private FontrEngine() {
     }
 
+    public void init() {
+        reloadIfNeeded();
+        LOGGER.info("[Fontr] Resource font engine ready");
+    }
+
+    /** Supplies a hook that copies OneConfig values into {@link FontrSettings}. */
+    public void setSettingsPoller(Runnable poller) {
+        this.settingsPoller = poller;
+    }
+
     public void log(String message) {
-        if (FontrConfig.debug) {
+        if (FontrSettings.debug) {
             LOGGER.info("[Fontr] " + message);
         }
     }
 
-    /**
-     * Loads the font eagerly so the PolyCompose/Skia registry is populated before
-     * the first OneConfig Compose frame is drawn.
-     */
-    public void warmUp() {
-        reloadIfNeeded();
-    }
-
-    public String fontDisplayName() {
-        FontrFont current = font;
-        if (current != null && current.base != null) {
-            String family = current.base.getFamily();
-            if (family != null && !family.isBlank()) {
-                return family;
+    /** Called from the client tick mixin. */
+    public void tick() {
+        if ((++tickCounter & 15) != 0) {
+            return;
+        }
+        Runnable poller = settingsPoller;
+        if (poller != null) {
+            try {
+                poller.run();
+            } catch (Throwable t) {
+                settingsPoller = null;
+                LOGGER.warn("[Fontr] Settings poller failed: " + t);
             }
         }
-        return "Fontr";
-    }
-
-    public boolean shouldHandle(Identifier fontLocation) {
-        if (!FontrConfig.enabled) {
-            return false;
+        String key = FontrSettings.sheetKey();
+        if (!key.equals(loadedKey) || (sheets == null && FontrSettings.enabled)) {
+            reloadIfNeeded();
+            pendingReload = true;
         }
-        // Handle every TextRenderer that loads a bitmap font page, not only
-        // the default ascii.png (e.g. ascii_sga.png for the enchanting table).
-        String location = fontLocation == null ? "" : fontLocation.toString();
-        if (!(location.endsWith(".png") && location.contains("/font/"))) {
-            if (FontrConfig.debug) {
-                synchronized (loggedLocations) {
-                    if (loggedLocations.size() < 8 && loggedLocations.add(location)) {
-                        log("Ignoring non-font TextRenderer " + location);
-                    }
-                }
-            }
-            return false;
+        if (FontrSettings.applyToPolyCompose && !PolyComposeFontBridge.isInstalled()
+            && loadedPath != null) {
+            PolyComposeFontBridge.install(loadedPath);
         }
-
-        reloadIfNeeded();
-        if (font == null) {
-            return false;
-        }
-
-        if (FontrConfig.allowResourcePackFontOverride) {
+        if (pendingReload) {
+            pendingReload = false;
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft != null && minecraft.isOnSameThread()) {
-                if (hasResourcePackFont()) {
-                    if (!resourcePackOverride) {
-                        resourcePackOverride = true;
-                        log("Resource pack provides a font; deferring to vanilla until the toggle is changed.");
-                    }
-                    return false;
+            if (minecraft != null) {
+                try {
+                    minecraft.reloadResources();
+                    log("Reloaded resources for new font settings");
+                } catch (Throwable t) {
+                    LOGGER.warn("[Fontr] Resource reload failed: " + t);
                 }
-            } else if (lastPackResult) {
-                return false;
             }
         }
-        resourcePackOverride = false;
-        return true;
     }
 
-    public Integer render(String text, float x, float y, int color, boolean shadow) {
-        if (text == null || text.isEmpty()) {
-            return 0;
-        }
-        if (shadow && !FontrConfig.dropShadow) {
-            return 0;
-        }
-
-        PolyComposeFontBridge.tick();
-
-        FontrLayout layout = layout(text);
-        if (layout == null) {
+    /**
+     * Called from the resource-manager mixins.
+     *
+     * @return the replacement resource, or null to let the vanilla one load
+     */
+    public Resource resourceFor(Identifier location, ResourceManager manager) {
+        if (!FontrSettings.enabled || Boolean.TRUE.equals(INTERNAL_READ.get())) {
             return null;
         }
-
-        try {
-            if (atlas == null) {
-                atlas = new FontrAtlas(font);
-            }
-            FontrRenderer.draw(layout, atlas, x, y, color, shadow, FontrConfig.pixelSnap);
-            if (FontrConfig.debug && !atlasDumped) {
-                atlasDumped = true;
-                atlas.dump(FabricLoader.getInstance().getConfigDir().resolve("Fontr"));
-                log("First render: text=" + text + " glyphs=" + layout.visual.length
-                    + " advance=" + layout.advance + " color=" + Integer.toHexString(color));
-            }
-            return layout.advance;
-        } catch (Throwable t) {
-            log("Render failed: " + t);
+        String name = location.toString();
+        if (!(name.equals(ASCII) || name.equals(GLYPH_SIZES) || name.startsWith(UNICODE))) {
             return null;
         }
-    }
-
-    public Integer measure(String text) {
-        if (text == null || text.isEmpty()) {
-            return 0;
-        }
-        FontrLayout layout = layout(text);
-        return layout == null ? null : layout.advance;
-    }
-
-    public Integer measureChar(char c) {
-        return measure(String.valueOf(c));
-    }
-
-    public String trim(String text, int width, boolean reverse) {
-        FontrLayout layout = layout(text);
-        return layout == null ? null : layout.trimTo(width, reverse);
-    }
-
-    public Integer indexAtWidth(String text, int width) {
-        FontrLayout layout = layout(text);
-        return layout == null ? null : layout.indexAtWidth(width);
-    }
-
-    private FontrLayout layout(String text) {
-        if (text == null) {
-            return null;
-        }
+        lastManager = manager;
         reloadIfNeeded();
-        if (font == null) {
+        FontrSheets current = sheets;
+        if (current == null) {
             return null;
         }
-        FontrLayout cached = layouts.get(text);
-        if (cached != null) {
-            return cached;
-        }
         try {
-            FontrLayout layout = FontrLayout.build(text, font);
-            layouts.put(text, layout);
-            return layout;
+            if (!loggedResourceHit && FontrSettings.debug) {
+                loggedResourceHit = true;
+                LOGGER.info("[Fontr] Serving generated font resources (" + name + ")");
+            }
+            if (name.equals(ASCII)) {
+                return FontrResource.of(location, current.asciiPng());
+            }
+            if (name.equals(GLYPH_SIZES)) {
+                return FontrResource.of(location, current.glyphSizes());
+            }
+            int block = parseBlock(name);
+            if (block < 0) {
+                return null;
+            }
+            byte[] png = current.unicodePng(block);
+            return png == null ? null : FontrResource.of(location, png);
         } catch (Throwable t) {
-            log("Layout failed: " + t);
+            LOGGER.warn("[Fontr] Could not build font resource " + name + ": " + t);
             return null;
         }
     }
 
-    private synchronized void reloadIfNeeded() {
-        String settings = settingsKey();
-        if (settings.equals(loadedSettings) && font != null) {
-            return;
+    private static int parseBlock(String name) {
+        String rest = name.substring(UNICODE.length());
+        if (rest.endsWith(".png")) {
+            rest = rest.substring(0, rest.length() - 4);
         }
-        if (settings.equals(loadedSettings) && font == null) {
-            return;
-        }
-
-        loadedSettings = settings;
-        layouts.clear();
-        atlas = null; // old GL textures are left to the driver on a live reload
-        atlasDumped = false;
-        FontrRenderer.resetDebug();
-
         try {
-            Path path = resolveFontPath(FontrConfig.fontPathOrDefault());
-            if (!Files.isRegularFile(path)) {
-                font = null;
-                log("Font file not found: " + path);
+            return Integer.parseInt(rest, 16);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    private void reloadIfNeeded() {
+        String key = FontrSettings.sheetKey();
+        synchronized (lock) {
+            if (key.equals(loadedKey) && (sheets != null || !FontrSettings.enabled)) {
                 return;
             }
-            font = FontrFont.load(path, FontrConfig.fontSize, FontrConfig.antialias,
-                                  FontrConfig.pixelSnap, FontrConfig.arabicShaping,
-                                  FontrConfig.fallbackFontName());
-            log("Loaded font " + path + " at " + FontrConfig.fontSize + "px");
-            if (FontrConfig.applyToPolyCompose) {
-                PolyComposeFontBridge.install(path, FontrConfig.pixelSnap);
+            loadedKey = key;
+            pendingReload = false;
+            sheets = null;
+            loadedPath = null;
+            if (!FontrSettings.enabled) {
+                LOGGER.info("[Fontr] Disabled");
+                return;
             }
-            dev.faris0x.fontr.compat.HudFontSelector.install();
-            dev.faris0x.fontr.compat.HudFontSelector.refreshLabel();
-        } catch (Throwable t) {
-            font = null;
-            log("Could not load font: " + t);
+
+            Path path;
+            try {
+                path = resolveFontPath(FontrSettings.fontPath);
+            } catch (Throwable t) {
+                LOGGER.warn("[Fontr] Invalid font path: " + t);
+                return;
+            }
+            if (!Files.isRegularFile(path)) {
+                LOGGER.warn("[Fontr] Font file not found: " + path);
+                return;
+            }
+
+            try {
+                FontrFont font = FontrFont.load(path, FontrSettings.fontSize,
+                    FontrSettings.fontScale, FontrSettings.antialias, FontrSettings.fontName());
+                Path cacheDir = FabricLoader.getInstance().getConfigDir()
+                    .resolve("Fontr").resolve("cache").resolve(cacheKey(path));
+                FontrSheets created = new FontrSheets(font, FontrSettings.resolution, cacheDir,
+                    this::openBase, FontrSettings.debug);
+                sheets = created;
+                loadedPath = path;
+                LOGGER.info("[Fontr] Loaded " + path.getFileName() + " at "
+                    + FontrSettings.resolution + "px sheets");
+                if (FontrSettings.applyToPolyCompose) {
+                    PolyComposeFontBridge.install(path);
+                }
+            } catch (Throwable t) {
+                LOGGER.warn("[Fontr] Could not load font " + path + ": " + t);
+            }
         }
     }
 
-    private String settingsKey() {
-        return FontrConfig.fontPathOrDefault() + '|' + FontrConfig.fontSize + '|'
-            + FontrConfig.antialias + '|' + FontrConfig.pixelSnap + '|'
-            + FontrConfig.fontScale + '|'
-            + FontrConfig.arabicShaping + '|' + FontrConfig.fallback + '|'
-            + FontrConfig.allowResourcePackFontOverride + '|'
-            + FontrConfig.applyToPolyCompose;
+    /** Reads from the resource packs underneath Fontr (never our own sheet). */
+    private InputStream openBase(String path) {
+        ResourceManager manager = lastManager;
+        if (manager == null) {
+            return null;
+        }
+        String[] parts = path.split("/", 2);
+        if (parts.length != 2) {
+            return null;
+        }
+        try {
+            INTERNAL_READ.set(Boolean.TRUE);
+            Resource resource = manager.getResource(new Identifier(parts[0], parts[1]));
+            return resource == null ? null : resource.asStream();
+        } catch (Throwable t) {
+            return null;
+        } finally {
+            INTERNAL_READ.set(Boolean.FALSE);
+        }
     }
 
     private static Path resolveFontPath(String value) {
@@ -257,68 +244,49 @@ public final class FontrEngine {
         return loader.getConfigDir().resolve(normalized);
     }
 
-    private boolean hasResourcePackFont() {
-        long now = System.currentTimeMillis();
-        if (now - resourcePackCheckedAt < RESOURCE_PACK_CACHE_MS) {
-            return lastPackResult;
-        }
-        resourcePackCheckedAt = now;
-        lastPackResult = false;
-
+    private String cacheKey(Path font) {
         try {
-            Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft == null) {
-                return false;
+            String identity = font.toAbsolutePath() + "|" + Files.getLastModifiedTime(font).toMillis()
+                + "|" + Files.size(font) + "|" + FontrSettings.sheetKey();
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            byte[] hash = digest.digest(identity.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < 6; i++) {
+                builder.append(String.format(Locale.ROOT, "%02x", hash[i]));
             }
-            ResourcePacks packs = minecraft.getResourcePacks();
-            if (packs != null) {
-                for (ResourcePacks.UnopenedPack unopened : packs.getSelectedPacks()) {
-                    if (!isCustomPackName(unopened.getName())) {
-                        continue;
-                    }
-                    ResourcePack pack;
-                    try {
-                        pack = unopened.open();
-                    } catch (Throwable ignored) {
-                        continue;
-                    }
-                    if (pack != null && providesFont(pack)) {
-                        lastPackResult = true;
-                        return true;
-                    }
-                }
-                ResourcePack serverPack = packs.getServerResourcePack();
-                if (serverPack != null && providesFont(serverPack)) {
-                    lastPackResult = true;
-                    return true;
-                }
-            }
-        } catch (Throwable ignored) {
-            // A resource manager reload can race this check; fail open.
+            String key = builder.toString();
+            pruneCache(font, key);
+            return key;
+        } catch (Throwable t) {
+            return "default";
         }
-        return lastPackResult;
     }
 
-    private static boolean isCustomPackName(String name) {
-        if (name == null) {
-            return true;
+    private void pruneCache(Path font, String keep) {
+        try {
+            Path root = FabricLoader.getInstance().getConfigDir().resolve("Fontr").resolve("cache");
+            if (!Files.isDirectory(root)) {
+                return;
+            }
+            try (Stream<Path> children = Files.list(root)) {
+                children.filter(Files::isDirectory).forEach(child -> {
+                    if (!child.getFileName().toString().equals(keep)) {
+                        deleteTree(child);
+                    }
+                });
+            }
+        } catch (Throwable ignored) {
         }
-        return !"Default".equalsIgnoreCase(name) && !"Programmer Art".equalsIgnoreCase(name);
     }
 
-    private static boolean providesFont(ResourcePack pack) {
-        Identifier ascii = new Identifier("textures/font/ascii.png");
-        if (!pack.hasResource(ascii)) {
-            return false;
-        }
-        // Only defer to a pack font that vanilla can actually render. HD packs
-        // ship 256x256 (or larger) ascii sheets and rely on MCPatcher/Cera;
-        // letting those win produces the classic wall of squares.
-        try (java.io.InputStream in = pack.getResource(ascii)) {
-            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(in);
-            return image != null && image.getWidth() == 128 && image.getHeight() == 128;
+    private static void deleteTree(Path path) {
+        try (Stream<Path> children = Files.list(path)) {
+            children.forEach(FontrEngine::deleteTree);
         } catch (Throwable ignored) {
-            return false;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (Throwable ignored) {
         }
     }
 }

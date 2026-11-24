@@ -1,207 +1,190 @@
 package dev.faris0x.fontr.text;
 
-import com.ibm.icu.text.ArabicShaping;
 import java.awt.Font;
-import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 
 /**
- * The loaded TTF/OTF plus its metrics and shaping context.
+ * The loaded TTF/OTF and its metrics, expressed in Minecraft's 8px font space.
+ *
+ * <p>Cap height is normalised to {@code (fontSize - 1) * fontScale} logical
+ * pixels, so generated glyphs line up with vanilla's 8px line and baseline at
+ * 7px.</p>
  */
 public final class FontrFont {
-    public final Font base;
-    public final Font fallback;
-    public final int size;
-    public final boolean antialias;
-    public final boolean pixelSnap;
-    public final boolean arabicShaping;
-    public final int baseline;
-    public final int descent;
+    /** Vanilla's text line is 8px tall with the baseline at y=7. */
+    public static final int LINE = 8;
+    public static final int BASELINE = 7;
 
+    private final Font base;
+    private final Font fallback;
     private final FontRenderContext frc;
+    private final boolean antialias;
+    private final float capLogical;
 
-    private FontrFont(Font base, Font fallback, int size, boolean antialias,
-                      boolean pixelSnap, boolean arabicShaping, FontRenderContext frc,
-                      int baseline, int descent) {
+    private FontrFont(Font base, Font fallback, FontRenderContext frc, boolean antialias,
+                      float capLogical) {
         this.base = base;
         this.fallback = fallback;
-        this.size = size;
-        this.antialias = antialias;
-        this.pixelSnap = pixelSnap;
-        this.arabicShaping = arabicShaping;
         this.frc = frc;
-        this.baseline = baseline;
-        this.descent = descent;
+        this.antialias = antialias;
+        this.capLogical = capLogical;
     }
 
-    public static FontrFont load(Path path, int size, boolean antialias, boolean pixelSnap,
-                                 boolean arabicShaping, String fallbackName) throws Exception {
+    public static FontrFont load(Path path, int fontSize, float fontScale, boolean antialias,
+                                 String fallbackName) throws Exception {
         Font created = Font.createFont(Font.TRUETYPE_FONT, path.toFile());
-        Font base = deriveVisualSize(created, (float) size);
+        FontRenderContext frc = new FontRenderContext(null, true, false);
+        float capLogical = Math.max(4.0F, (fontSize - 1) * fontScale);
+
+        Font base = derive(created, capLogical, frc);
         Font fallback = null;
         if (fallbackName != null) {
-            fallback = deriveVisualSize(new Font(fallbackName, Font.PLAIN, size), (float) size);
+            Font candidate = new Font(fallbackName, Font.PLAIN, 1).deriveFont(100.0F);
+            if (canDisplayFamily(candidate)) {
+                fallback = derive(candidate, capLogical, frc);
+            }
         }
-
-        BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = probe.createGraphics();
-        setHints(graphics, antialias, pixelSnap);
-        graphics.setFont(base);
-        FontMetrics metrics = graphics.getFontMetrics();
-        FontRenderContext frc = graphics.getFontRenderContext();
-        // Minecraft's line is `size` pixels tall. Put the baseline one pixel
-        // above the bottom instead of using the font's em ascent (some fonts
-        // have ascent == em and would push glyphs out of the line).
-        int baseline = Math.max(1, size - 1);
-        int descent = Math.round(metrics.getDescent());
-        graphics.dispose();
-
-        return new FontrFont(base, fallback, size, antialias, pixelSnap,
-                             arabicShaping, frc, baseline, descent);
+        return new FontrFont(base, fallback, frc, antialias, capLogical);
     }
 
-    /**
-     * Pixel fonts often have a cap height far below their em size (this one is
-     * ~58%). Deriving at the raw pixel size then produces 4px blobs in a 9px
-     * line. Scale the point size so a capital H occupies ~80% of the requested
-     * line height while keeping the same baseline/line spacing.
-     */
-    public static Font deriveVisualSize(Font created, float lineHeight) {
-        float pointSize = lineHeight;
+    private static Font derive(Font font, float capLogical, FontRenderContext frc) {
+        Font probe = font.deriveFont(Font.PLAIN, 100.0F);
+        float capRatio = 0.7F;
         try {
-            BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D graphics = probe.createGraphics();
-            Font probeFont = created.deriveFont(Font.PLAIN, 100.0F);
-            graphics.setFont(probeFont);
-            FontRenderContext frc = graphics.getFontRenderContext();
-            GlyphVector vector = probeFont.createGlyphVector(frc, "H");
+            GlyphVector vector = probe.createGlyphVector(frc, "H");
             java.awt.Rectangle bounds = vector.getPixelBounds(frc, 0, 0);
-            graphics.dispose();
             if (bounds.height > 0) {
-                float capRatio = bounds.height / 100.0F;
-                pointSize = (lineHeight * 0.80F * dev.faris0x.fontr.config.FontrConfig.fontScale) / capRatio;
+                capRatio = bounds.height / 100.0F;
             }
         } catch (Throwable ignored) {
         }
-        // Never shrink below the requested size, and avoid absurd scaling.
-        pointSize = Math.max(lineHeight, Math.min(lineHeight * 2.5F, pointSize));
-        return created.deriveFont(Font.PLAIN, pointSize);
+        float size = Math.max(1.0F, capLogical / capRatio);
+        return probe.deriveFont(Font.PLAIN, size);
     }
 
-    private static void setHints(Graphics2D graphics, boolean antialias, boolean pixelSnap) {
-        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-            antialias ? RenderingHints.VALUE_ANTIALIAS_ON : RenderingHints.VALUE_ANTIALIAS_OFF);
-        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-            antialias ? RenderingHints.VALUE_TEXT_ANTIALIAS_ON : RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
-        graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,
-            pixelSnap ? RenderingHints.VALUE_FRACTIONALMETRICS_OFF : RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        graphics.setRenderingHint(RenderingHints.KEY_RENDERING,
-            pixelSnap ? RenderingHints.VALUE_RENDER_SPEED : RenderingHints.VALUE_RENDER_QUALITY);
-    }
-
-    public FontRenderContext frc() {
-        return frc;
-    }
-
-    public Font forStyle(int style) {
-        return base.deriveFont(style);
-    }
-
-    public Font fallbackForStyle(int style) {
-        return fallback == null ? null : fallback.deriveFont(style);
-    }
-
-    public boolean primaryCanDisplay(char c) {
-        return base.canDisplay(c);
-    }
-
-    public Font fontFor(char c, int style) {
-        if (primaryCanDisplay(c)) {
-            return forStyle(style);
-        }
-        Font fb = fallbackForStyle(style);
-        if (fb != null && fb.canDisplay(c)) {
-            return fb;
-        }
-        return forStyle(style);
-    }
-
-    public GlyphVector layout(Font font, char[] text, int start, int end) {
-        return font.layoutGlyphVector(frc, text, start, end, Font.LAYOUT_LEFT_TO_RIGHT);
-    }
-
-    public ShapedText shape(String text) {
-        if (!arabicShaping || !containsArabic(text)) {
-            int[] map = new int[text.length()];
-            for (int i = 0; i < map.length; i++) {
-                map[i] = i;
-            }
-            return new ShapedText(text, map);
-        }
-
+    private static boolean canDisplayFamily(Font candidate) {
         try {
-            ArabicShaping shaper = new ArabicShaping(ArabicShaping.LETTERS_SHAPE);
-            String shaped = shaper.shape(text);
-            int[] map = new int[shaped.length()];
-            int original = 0;
-            for (int i = 0; i < shaped.length(); i++) {
-                if (original >= text.length()) {
-                    original = text.length() - 1;
-                }
-                map[i] = original;
-                if (original < text.length()) {
-                    char current = text.charAt(original);
-                    if (current == '\u0644' && original + 1 < text.length()
-                        && isAlef(text.charAt(original + 1))) {
-                        original += 2;
-                    } else {
-                        original++;
-                    }
-                }
-            }
-            return new ShapedText(shaped, map);
+            return candidate.canDisplay('A');
         } catch (Throwable t) {
-            int[] map = new int[text.length()];
-            for (int i = 0; i < map.length; i++) {
-                map[i] = i;
-            }
-            return new ShapedText(text, map);
+            return false;
         }
     }
 
-    private static boolean containsArabic(String text) {
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c >= '\u0600' && c <= '\u06FF') {
-                return true;
+    public float capLogical() {
+        return capLogical;
+    }
+
+    public boolean canDisplay(int codepoint) {
+        if (!Character.isValidCodePoint(codepoint)) {
+            return false;
+        }
+        if (base.canDisplay(codepoint)) {
+            return true;
+        }
+        return fallback != null && fallback.canDisplay(codepoint);
+    }
+
+    /** Advance in Minecraft pixels (1..8), matching vanilla's integer widths. */
+    public int advance(int codepoint) {
+        int advance = 4;
+        try {
+            char[] chars = chars(codepoint);
+            GlyphVector vector = fontFor(codepoint).layoutGlyphVector(frc, chars, 0, chars.length,
+                Font.LAYOUT_LEFT_TO_RIGHT);
+            advance = (int) Math.round(vector.getGlyphPosition(vector.getNumGlyphs()).getX());
+        } catch (Throwable ignored) {
+        }
+        return Math.max(1, Math.min(8, advance));
+    }
+
+    /** True if at least one renderable codepoint in the block has a glyph. */
+    public boolean hasCoverage(int block) {
+        int start = block << 8;
+        for (int codepoint = start; codepoint < start + 256; codepoint++) {
+            if (!renderable(codepoint)) {
+                continue;
             }
-            if (c >= '\u0750' && c <= '\u077F') {
-                return true;
-            }
-            if (c >= '\u08A0' && c <= '\u08FF') {
+            if (canDisplay(codepoint)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean isAlef(char c) {
-        return c == '\u0627' || c == '\u0622' || c == '\u0623' || c == '\u0625' || c == '\u0671';
+    private static boolean renderable(int codepoint) {
+        if (codepoint < 0x20 || (codepoint >= 0x7F && codepoint < 0xA0)) {
+            return false;
+        }
+        if (codepoint >= 0xD800 && codepoint <= 0xDFFF) {
+            return false;
+        }
+        int type = Character.getType(codepoint);
+        return type != Character.UNASSIGNED && type != Character.CONTROL && type != Character.FORMAT;
     }
 
-    public static final class ShapedText {
-        public final String text;
-        /** shaped index -> original stripped index */
-        public final int[] map;
-
-        ShapedText(String text, int[] map) {
-            this.text = text;
-            this.map = map;
+    private Font fontFor(int codepoint) {
+        if (base.canDisplay(codepoint) || fallback == null || !fallback.canDisplay(codepoint)) {
+            return base;
         }
+        return fallback;
+    }
+
+    /**
+     * Draws one glyph with its pen at {@code x} and baseline at {@code y}.
+     *
+     * @param scale      sheet scale (1 = 8px cells, 32 = 256px cells, ...)
+     * @param maxAdvance maximum ink width in sheet pixels
+     */
+    public void drawGlyph(Graphics2D graphics, int codepoint, float scale, float x, float y,
+                          float maxAdvance) {
+        Font chosen = fontFor(codepoint);
+        Font font = chosen.deriveFont(Font.PLAIN, chosen.getSize2D() * scale);
+        graphics.setFont(font);
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+            antialias ? RenderingHints.VALUE_ANTIALIAS_ON : RenderingHints.VALUE_ANTIALIAS_OFF);
+        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+            antialias ? RenderingHints.VALUE_TEXT_ANTIALIAS_ON : RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
+        GlyphVector vector;
+        try {
+            char[] chars = chars(codepoint);
+            vector = font.layoutGlyphVector(frc, chars, 0, chars.length, Font.LAYOUT_LEFT_TO_RIGHT);
+        } catch (Throwable t) {
+            return;
+        }
+
+        float scaleX = 1.0F;
+        try {
+            java.awt.Rectangle bounds = vector.getPixelBounds(frc, x, y);
+            float inkRight = bounds.x + bounds.width;
+            if (inkRight - x > maxAdvance && inkRight > x) {
+                scaleX = Math.max(0.2F, maxAdvance / (inkRight - x));
+            }
+        } catch (Throwable ignored) {
+        }
+
+        Shape clip = graphics.getClip();
+        java.awt.geom.AffineTransform old = graphics.getTransform();
+        graphics.translate(x, y);
+        if (scaleX != 1.0F) {
+            graphics.scale(scaleX, 1.0F);
+        }
+        graphics.drawGlyphVector(vector, 0.0F, 0.0F);
+        graphics.setTransform(old);
+        if (clip != null) {
+            graphics.setClip(clip);
+        }
+    }
+
+    private static char[] chars(int codepoint) {
+        String value = new String(Character.toChars(codepoint));
+        return value.toCharArray();
     }
 }

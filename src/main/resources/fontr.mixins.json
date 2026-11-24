@@ -4,9 +4,11 @@
 	"package": "dev.faris0x.fontr.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
-		"TextRendererMixin",
-		"TextHudFontMixin",
-		"HudTextFontMixin"
+		"FallbackResourceManagerMixin",
+		"SimpleReloadableResourceManagerMixin",
+		"OslResourceManagerAdapterMixin",
+		"SimpleTextureFilterMixin",
+		"MinecraftTickMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

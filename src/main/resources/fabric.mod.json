@@ -3,7 +3,7 @@
 	"id": "fontr",
 	"version": "${version}",
 	"name": "Fontr",
-	"description": "A TrueType/OpenType replacement for Minecraft's bitmap font, with Arabic shaping, pixel-font support and OneConfig settings.",
+	"description": "A global TrueType/OpenType font override for Minecraft 1.8.9. Generates high-resolution font sheets from a TTF/OTF and serves them to every text renderer.",
 	"authors": [
 		"Faris"
 	],
@@ -24,7 +24,9 @@
 	],
 	"depends": {
 		"fabricloader": ">=0.20.1",
-		"minecraft": "1.8.9",
+		"minecraft": "1.8.9"
+	},
+	"suggests": {
 		"oneconfigv1": ">=1.9.0"
 	}
 }
