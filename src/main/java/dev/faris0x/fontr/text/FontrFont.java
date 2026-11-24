@@ -50,38 +50,29 @@ public final class FontrFont {
                                  String fallbackName) throws Exception {
         Font created = read(regular);
         FontRenderContext frc = new FontRenderContext(null, true, false);
-        float capTarget = (float) Math.max(4, fontSize - 1);
-
-        Font base = derive(created, capTarget, frc);
-        float[] metrics = measure(base, frc);
-        float ascent = metrics[0];
-        float descent = metrics[1];
-        float required = ascent + descent;
-        if (required > LINE + 0.5F && required > 0.0F) {
-            // Allow half a pixel of overflow (clipped like vanilla) instead of
-            // shrinking every glyph for a single tall bracket or accent.
-            float fit = Math.max(0.85F, Math.min(1.0F, (LINE + 0.5F) / required));
-            base = base.deriveFont(base.getSize2D() * fit);
-            metrics = measure(base, frc);
-            ascent = metrics[0];
-            descent = metrics[1];
-        }
         float user = Math.max(0.5F, Math.min(1.5F, fontScale));
-        if (user != 1.0F) {
-            base = base.deriveFont(base.getSize2D() * user);
-            ascent *= user;
-            descent *= user;
-        }
+
+        // Measure at 100px so integer pixel rounding does not distort the ratio,
+        // then pick the size whose ascent + descent fits the 8px line.
+        Font probe = created.deriveFont(Font.PLAIN, 100.0F);
+        float[] metrics = measure(probe, frc);
+        float total = metrics[0] + metrics[1];
+        float size = total > 0.0F ? (float) LINE * 100.0F / total : (float) Math.max(4, fontSize - 1);
+        size = Math.max(4.0F, size * user);
+        Font base = created.deriveFont(Font.PLAIN, size);
+
+        float ascent = (metrics[0] / 100.0F) * size;
+        float descent = (metrics[1] / 100.0F) * size;
         float baseline = Math.max(0.0F, Math.min(7.0F, ascent));
 
-        Font bold = face(boldPath, regular, base);
-        Font italic = face(italicPath, regular, base);
-        Font boldItalic = face(boldItalicPath, regular, base);
+        Font boldFace = face(boldPath, regular, base);
+        Font italicFace = face(italicPath, regular, base);
+        Font boldItalicFace = face(boldItalicPath, regular, base);
         // No face files found: bake AWT's synthetic face so style sheets still
         // exist (real faces are used when available).
-        Font derivedBold = bold != null ? bold : base.deriveFont(Font.BOLD);
-        Font derivedItalic = italic != null ? italic : base.deriveFont(Font.ITALIC);
-        Font derivedBoldItalic = boldItalic != null ? boldItalic
+        Font derivedBold = boldFace != null ? boldFace : base.deriveFont(Font.BOLD);
+        Font derivedItalic = italicFace != null ? italicFace : base.deriveFont(Font.ITALIC);
+        Font derivedBoldItalic = boldItalicFace != null ? boldItalicFace
             : base.deriveFont(Font.BOLD | Font.ITALIC);
         Font fallback = null;
         if (fallbackName != null) {
