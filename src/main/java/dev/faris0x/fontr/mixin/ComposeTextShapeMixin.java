@@ -17,7 +17,8 @@ public abstract class ComposeTextShapeMixin {
         String result = ArabicText.forHud(text);
         if (!fontr$logged && result != null && !result.equals(text)) {
             fontr$logged = true;
-            FontrEngine.INSTANCE.log("HUD Compose Arabic transform active");
+            FontrEngine.INSTANCE.log("HUD Compose Arabic transform active: "
+                + text + " -> " + result);
         }
         return result;
     }

@@ -13,6 +13,7 @@
 		"EvergreenLabelMixin",
 		"ComposeTextShapeMixin",
 		"ComposeBidiMixin",
+		"HudPolyTextMixin",
 		"FullWidthGlyphMixin",
 		"ArgentumGlyphWidthMixin"
 	],
