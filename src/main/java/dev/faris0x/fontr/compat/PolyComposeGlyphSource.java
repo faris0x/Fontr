@@ -35,8 +35,10 @@ public final class PolyComposeGlyphSource {
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
 
     private static final int CELL = 8;
+    private static final int SUPERSAMPLE = 4;
+    private static final int PIXELS = CELL * SUPERSAMPLE; // 32
     private static final int GRID = 64;
-    private static final int ATLAS = CELL * GRID; // 512
+    private static final int ATLAS = PIXELS * GRID; // 2048
     private static final int MAX_CP = GRID * GRID; // 4096
 
     private static Object sourceProxy;
@@ -160,14 +162,14 @@ public final class PolyComposeGlyphSource {
                 advances[cp] = advance;
             }
 
-            int cellX = (cp % GRID) * CELL;
-            int cellY = (cp / GRID) * CELL;
+            int cellX = (cp % GRID) * PIXELS;
+            int cellY = (cp / GRID) * PIXELS;
             rasterise(text, cellX, cellY);
 
             float u0 = (float) cellX / ATLAS;
             float v0 = (float) cellY / ATLAS;
-            float u1 = (float) (cellX + advance) / ATLAS;
-            float v1 = (float) (cellY + CELL) / ATLAS;
+            float u1 = (float) (cellX + advance * SUPERSAMPLE) / ATLAS;
+            float v1 = (float) (cellY + PIXELS) / ATLAS;
 
             Object glyph = glyphConstructor.newInstance(polyBitmap,
                 u0, v0, u1, v1,
@@ -181,7 +183,7 @@ public final class PolyComposeGlyphSource {
     }
 
     private static void rasterise(String text, int cellX, int cellY) {
-        BufferedImage cell = new BufferedImage(CELL, CELL, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage cell = new BufferedImage(PIXELS, PIXELS, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = cell.createGraphics();
         graphics.setComposite(java.awt.AlphaComposite.Src);
         graphics.setColor(Color.WHITE);
@@ -192,14 +194,15 @@ public final class PolyComposeGlyphSource {
         graphics.setFont(font);
         GlyphVector vector = font.layoutGlyphVector(frc, text.toCharArray(), 0, text.length(),
             Font.LAYOUT_LEFT_TO_RIGHT);
-        // Draw with the baseline on row 7 inside the 8px cell.
+        // Draw at 4x resolution with the baseline on row 7 of the logical 8px cell.
+        graphics.scale(SUPERSAMPLE, SUPERSAMPLE);
         graphics.drawGlyphVector(vector, 0, CELL - 1);
         graphics.dispose();
 
-        int[] argb = cell.getRGB(0, 0, CELL, CELL, null, 0, CELL);
-        for (int row = 0; row < CELL; row++) {
-            for (int col = 0; col < CELL; col++) {
-                int color = argb[row * CELL + col];
+        int[] argb = cell.getRGB(0, 0, PIXELS, PIXELS, null, 0, PIXELS);
+        for (int row = 0; row < PIXELS; row++) {
+            for (int col = 0; col < PIXELS; col++) {
+                int color = argb[row * PIXELS + col];
                 int at = ((cellY + row) * ATLAS + cellX + col) * 4;
                 pixels[at] = (byte) (color >> 16);
                 pixels[at + 1] = (byte) (color >> 8);

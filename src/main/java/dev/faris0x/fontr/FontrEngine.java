@@ -197,6 +197,8 @@ public final class FontrEngine {
         loadedSettings = settings;
         layouts.clear();
         atlas = null; // old GL textures are left to the driver on a live reload
+        atlasDumped = false;
+        FontrRenderer.resetDebug();
 
         try {
             Path path = resolveFontPath(FontrConfig.fontPathOrDefault());

@@ -162,16 +162,16 @@ public final class FontrLayout {
                 double position = vector.getGlyphPosition(i).getX();
                 double nextPosition = vector.getGlyphPosition(i + 1).getX();
                 int glyphAdvance = (int) Math.round(nextPosition - position);
-                float x = rtl
+                // getGlyphPixelBounds() is already offset by the glyph's pen
+                // position, so the bitmap's left edge is pen + bounds.x. Do NOT
+                // add bounds.x to pen + position as well: that doubles spacing.
+                float origin = rtl
                     ? (float) (pen + (runWidth - (position + glyphAdvance)))
                     : (float) (pen + position);
-                // The rasterised bitmap starts at bounds.x relative to the glyph
-                // origin, not at the origin itself. Without this every glyph is
-                // drawn shifted left by its left side bearing.
-                x += bounds.x;
+                float bitmapX = origin + (bounds.x - (float) position);
 
                 out.add(new Glyph(originalIndex, runFont, styleAtGlyph, vector.getGlyphCode(i),
-                                  x, bounds.y, bounds.width, bounds.height, glyphAdvance));
+                                  bitmapX, bounds.y, bounds.width, bounds.height, glyphAdvance));
             }
 
             pen += (int) Math.round(runWidth);

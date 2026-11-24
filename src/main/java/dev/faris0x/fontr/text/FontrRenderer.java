@@ -23,6 +23,11 @@ public final class FontrRenderer {
     private FontrRenderer() {
     }
 
+    /** Allow the next font reload to dump/log its atlas again. */
+    public static void resetDebug() {
+        DEBUG_DRAWN = false;
+    }
+
     public static void draw(FontrLayout layout, FontrAtlas atlas, float x, float y,
                             int initialColor, boolean shadow, boolean pixelSnap) {
         if (layout.visual.length == 0) {

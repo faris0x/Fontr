@@ -61,11 +61,17 @@ public final class FontrAtlas {
         if (bounds.width <= 0 || bounds.height <= 0) {
             return Entry.EMPTY;
         }
-        if (bounds.width > SIZE || bounds.height > SIZE) {
+
+        // Rasterise large and let GL_LINEAR minify it. Rendering an 8px TTF at
+        // 8px is inherently aliased; this keeps the glyph shapes smooth.
+        int scale = (loadedFont.antialias && !loadedFont.pixelSnap) ? 4 : 1;
+        int pixelWidth = bounds.width * scale;
+        int pixelHeight = bounds.height * scale;
+        if (pixelWidth > SIZE || pixelHeight > SIZE) {
             return Entry.EMPTY;
         }
 
-        BufferedImage image = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage image = new BufferedImage(pixelWidth, pixelHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
         graphics.setComposite(AlphaComposite.Src);
         graphics.setColor(Color.WHITE);
@@ -73,14 +79,17 @@ public final class FontrAtlas {
             loadedFont.antialias ? RenderingHints.VALUE_ANTIALIAS_ON : RenderingHints.VALUE_ANTIALIAS_OFF);
         graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
             loadedFont.antialias ? RenderingHints.VALUE_TEXT_ANTIALIAS_ON : RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+        graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,
+            loadedFont.pixelSnap ? RenderingHints.VALUE_FRACTIONALMETRICS_OFF : RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        graphics.scale(scale, scale);
         graphics.drawGlyphVector(vector, -bounds.x, -bounds.y);
         graphics.dispose();
 
         Page page = currentPage();
-        if (page == null || page.x + bounds.width + PAD > SIZE) {
+        if (page == null || page.x + pixelWidth + PAD > SIZE) {
             page = newPage();
         }
-        if (page.y + bounds.height + PAD > SIZE) {
+        if (page.y + pixelHeight + PAD > SIZE) {
             page = newPage();
         }
 
@@ -88,17 +97,17 @@ public final class FontrAtlas {
         int y = page.y;
         page.graphics.drawImage(image, x, y, null);
 
-        page.x += bounds.width + PAD;
-        page.lineHeight = Math.max(page.lineHeight, bounds.height);
+        page.x += pixelWidth + PAD;
+        page.lineHeight = Math.max(page.lineHeight, pixelHeight);
         if (page.x + PAD >= SIZE) {
             page.x = PAD;
             page.y += page.lineHeight + PAD;
             page.lineHeight = 0;
         }
 
-        page.upload(x, y, bounds.width, bounds.height);
+        page.upload(x, y, pixelWidth, pixelHeight);
 
-        return new Entry(page.texture, x, y, bounds.width, bounds.height);
+        return new Entry(page.texture, x, y, bounds.width, bounds.height, pixelWidth, pixelHeight);
     }
 
     private Page currentPage() {
@@ -159,28 +168,34 @@ public final class FontrAtlas {
     }
 
     public static final class Entry {
-        public static final Entry EMPTY = new Entry(0, 0, 0, 0, 0);
+        public static final Entry EMPTY = new Entry(0, 0, 0, 0, 0, 0, 0);
 
         public final int texture;
         public final int x;
         public final int y;
+        /** Logical (screen) size of the glyph quad. */
         public final int width;
         public final int height;
+        /** Actual bitmap size in the atlas (may be supersampled). */
+        public final int pixelWidth;
+        public final int pixelHeight;
         public final float u1;
         public final float v1;
         public final float u2;
         public final float v2;
 
-        Entry(int texture, int x, int y, int width, int height) {
+        Entry(int texture, int x, int y, int width, int height, int pixelWidth, int pixelHeight) {
             this.texture = texture;
             this.x = x;
             this.y = y;
             this.width = width;
             this.height = height;
+            this.pixelWidth = pixelWidth;
+            this.pixelHeight = pixelHeight;
             this.u1 = (float) x / SIZE;
             this.v1 = (float) y / SIZE;
-            this.u2 = (float) (x + width) / SIZE;
-            this.v2 = (float) (y + height) / SIZE;
+            this.u2 = (float) (x + pixelWidth) / SIZE;
+            this.v2 = (float) (y + pixelHeight) / SIZE;
         }
     }
 

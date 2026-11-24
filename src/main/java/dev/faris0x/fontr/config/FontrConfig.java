@@ -54,7 +54,7 @@ public final class FontrConfig extends Config {
         description = "Smooth glyph edges. Turn this off for pixel fonts.",
         category = CATEGORY_FONT
     )
-    public static boolean antialias = false;
+    public static boolean antialias = true;
 
     @Switch(
         title = "Pixel snap",
