@@ -35,11 +35,11 @@ public final class PolyComposeGlyphSource {
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
 
     private static final int CELL = 8;
-    private static final int SUPERSAMPLE = 4;
-    private static final int PIXELS = CELL * SUPERSAMPLE; // 32
-    private static final int GRID = 64;
-    private static final int ATLAS = PIXELS * GRID; // 2048
-    private static final int MAX_CP = GRID * GRID; // 4096
+    private static final int SUPERSAMPLE = 8;
+    private static final int PIXELS = CELL * SUPERSAMPLE; // 64
+    private static final int GRID = 48;
+    private static final int ATLAS = PIXELS * GRID; // 3072
+    private static final int MAX_CP = GRID * GRID; // 2304
 
     private static Object sourceProxy;
     private static Object polyBitmap;

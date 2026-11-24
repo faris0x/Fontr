@@ -27,7 +27,7 @@ import java.nio.file.Path;
  * the render thread (drawLayer), never in the measuring path.
  */
 public final class FontrAtlas {
-    private static final int SIZE = 1024;
+    private static final int SIZE = 2048;
     private static final int PAD = 1;
 
     private final FontrFont loadedFont;
@@ -64,7 +64,7 @@ public final class FontrAtlas {
 
         // Rasterise large and let GL_LINEAR minify it. Rendering an 8px TTF at
         // 8px is inherently aliased; this keeps the glyph shapes smooth.
-        int scale = loadedFont.pixelSnap ? 1 : 4;
+        int scale = loadedFont.pixelSnap ? 1 : 8;
         int pixelWidth = bounds.width * scale;
         int pixelHeight = bounds.height * scale;
         if (pixelWidth > SIZE || pixelHeight > SIZE) {
