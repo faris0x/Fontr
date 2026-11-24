@@ -289,8 +289,18 @@ public final class FontrEngine {
     }
 
     private static boolean providesFont(ResourcePack pack) {
-        return pack.hasResource(new Identifier("textures/font/ascii.png"))
-            || pack.hasResource(new Identifier("font/glyph_sizes.bin"))
-            || pack.hasResource(new Identifier("textures/font/unicode_page_00.png"));
+        Identifier ascii = new Identifier("textures/font/ascii.png");
+        if (!pack.hasResource(ascii)) {
+            return false;
+        }
+        // Only defer to a pack font that vanilla can actually render. HD packs
+        // ship 256x256 (or larger) ascii sheets and rely on MCPatcher/Cera;
+        // letting those win produces the classic wall of squares.
+        try (java.io.InputStream in = pack.getResource(ascii)) {
+            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(in);
+            return image != null && image.getWidth() == 128 && image.getHeight() == 128;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 }
