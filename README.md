@@ -7,8 +7,8 @@ signs, tooltips, the F3 screen, Argentum's batched text, and Cera.
 
 ## How it works
 
-Fontr does not hook `TextRenderer`. Instead it replaces the three resources every
-1.8.9 renderer already reads:
+Fontr does not hook any text renderer. It registers a required, fixed, top-of-stack
+**OSL resource pack** containing the resources every 1.8.9 renderer already reads:
 
 | Resource | Generated from |
 |---|---|
@@ -16,10 +16,15 @@ Fontr does not hook `TextRenderer`. Instead it replaces the three resources ever
 | `textures/font/unicode_page_XX.png` | 256x256 pages, generated lazily for the blocks the font covers |
 | `font/glyph_sizes.bin` | per-codepoint advances, merged with the pack's original widths |
 
-Because the data is replaced at the resource level, it does not matter which
-renderer asks for it. Vanilla uploads the sheet with `GL_NEAREST`; Fontr switches
-font textures to `GL_LINEAR` + a capped mip chain so the extra resolution is
-actually visible.
+Using a real pack (rather than intercepting Minecraft's resource manager) is what
+makes the override visible to PolyCompose's `McResourceFont` (OneConfig HUD
+"Default" font) and Cera, which read the OSL resource manager directly. Vanilla
+uploads font sheets with `GL_NEAREST`; Fontr switches them to `GL_LINEAR` + a
+capped mip chain so the extra resolution is actually visible.
+
+Arabic text is rewritten before it reaches the renderer: a small argument-level
+mixin joins letters with ICU and reorders right-to-left runs, and the same
+transform is applied to the width/trim helpers so layout stays consistent.
 
 Cap height is normalised to the vanilla 7px cap in an 8px line. Fallback glyphs
 (codepoints missing from the selected font) are rasterised from the configured
@@ -58,8 +63,12 @@ Changing a setting reloads resources automatically.
 - **Sheet resolution** — `4096` (32x supersampling, ~85 MB VRAM) or `8192`
   (64x, ~340 MB VRAM including mipmaps).
 - **Glyph scale** — cap height within the 8px line. `1.0` matches Mojangles.
+- **Letter spacing** — extra pixels between glyphs; negative tightens text.
+- **Embolden** — strokes glyph outlines for thin fonts at 8px.
 - **Antialiasing** — off for pixel fonts.
+- **Mipmaps** — mip chain for font textures; turn off to compare sharpness.
 - **Fallback** — system font used for codepoints missing from the main font.
+- **Arabic shaping + RTL** — joins Arabic letters and reorders RTL runs.
 - **Apply to OneConfig UI** — also register the TTF with PolyCompose so the
   mod menu and OneConfig HUD match.
 - **Debug logging** — logs cache keys, generated pages and resource hits.
@@ -76,5 +85,10 @@ This repository does not include the font. Do not redistribute it.
   the vast majority of UI text) is supersampled.
 - Keep Cera's `hd_fonts` off. Fontr supplies its own HD sheet; Cera's HD-font
   path would re-read the pack's sheet and undo the override.
+- Bold remains vanilla's synthetic bold (the glyph is drawn twice, offset by
+  1px); a bitmap font format cannot carry a separate bold face.
+- PolyCompose's accented/non-Latin European sheets (`accented.png`,
+  `nonlatin_european.png`) are not regenerated yet; those characters still come
+  from the selected resource pack.
 - Each 4096 ASCII sheet is uploaded once per resource reload; the mip chain is
   capped at level 4 to keep VRAM reasonable.
