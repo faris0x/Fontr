@@ -167,6 +167,19 @@ public final class FontrFont {
         return baseline;
     }
 
+    public float pointSize() {
+        return base.getSize2D();
+    }
+
+    public FontRenderContext frc() {
+        return frc;
+    }
+
+    /** The face used for this codepoint in the regular style (base or fallback). */
+    public Font fontForCodepoint(int codepoint) {
+        return faceFor(codepoint, Style.REGULAR);
+    }
+
     public boolean hasStyle(Style style) {
         if (style == Style.REGULAR) {
             return true;
@@ -241,7 +254,8 @@ public final class FontrFont {
      * Any overflow is scaled down uniformly instead of being clipped.
      */
     public void drawGlyph(Graphics2D graphics, int codepoint, float scale, float x, float y,
-                          float maxAdvance, float embolden, Style style) {
+                          float maxAdvance, float embolden, Style style,
+                          float cellTop, float cellBottom) {
         Font chosen = faceFor(codepoint, style);
         Font font = chosen.deriveFont(Font.PLAIN, chosen.getSize2D() * scale);
         graphics.setFont(font);
@@ -260,22 +274,24 @@ public final class FontrFont {
         }
 
         float squeeze = 1.0F;
+        float shift = 0.0F;
         try {
             java.awt.Rectangle bounds = vector.getPixelBounds(frc, x, y);
             if (bounds.width > 0 && bounds.height > 0) {
-                float inkRight = bounds.x + bounds.width;
+                if (bounds.x < x) {
+                    shift = x - bounds.x;
+                }
+                float inkRight = bounds.x + bounds.width + shift;
                 if (maxAdvance > 0.0F && inkRight - x > maxAdvance) {
                     squeeze = Math.min(squeeze, maxAdvance / (inkRight - x));
                 }
-                float top = y - baseline * scale;
-                float bottom = top + (float) LINE * scale;
                 float vertical = 1.0F;
-                if (bounds.y < top) {
-                    vertical = Math.min(vertical, (y - top) / Math.max(1.0F, y - bounds.y));
+                if (bounds.y < cellTop) {
+                    vertical = Math.min(vertical, (y - cellTop) / Math.max(1.0F, y - bounds.y));
                 }
                 float inkBottom = bounds.y + bounds.height;
-                if (inkBottom > bottom) {
-                    vertical = Math.min(vertical, (bottom - y) / Math.max(1.0F, inkBottom - y));
+                if (inkBottom > cellBottom) {
+                    vertical = Math.min(vertical, (cellBottom - y) / Math.max(1.0F, inkBottom - y));
                 }
                 if (vertical >= 0.8F) {
                     squeeze = Math.min(squeeze, vertical);
@@ -287,7 +303,7 @@ public final class FontrFont {
 
         Shape clip = graphics.getClip();
         java.awt.geom.AffineTransform old = graphics.getTransform();
-        graphics.translate(x, y);
+        graphics.translate(x + shift, y);
         if (squeeze != 1.0F) {
             graphics.scale(squeeze, squeeze);
         }

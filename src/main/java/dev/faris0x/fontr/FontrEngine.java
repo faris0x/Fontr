@@ -64,6 +64,7 @@ public final class FontrEngine {
     private volatile boolean pendingReload;
     private volatile boolean served;
     private volatile boolean loggedServe;
+    private volatile boolean loggedArgentumAdjust;
     private volatile int tickCounter;
 
     private FontrEngine() {
@@ -213,6 +214,34 @@ public final class FontrEngine {
         return FontrSettings.argentumStyles && FontrSettings.trueStyles;
     }
 
+    /**
+     * Argentum adds one pixel to every scanned advance. Fontr's sheets already
+     * include vanilla's one-pixel gap, so remove the extra one.
+     */
+    public void adjustArgentumWidths(float[] widths, int[] characterWidths) {
+        if (!FontrSettings.enabled || sheets == null || widths == null) {
+            return;
+        }
+        for (int i = 0; i < widths.length && i < 256; i++) {
+            if (i == 32) {
+                continue;
+            }
+            if (widths[i] > 1.0F) {
+                widths[i] -= 1.0F;
+            }
+        }
+        widths[32] = 4.0F;
+        if (characterWidths != null) {
+            for (int i = 0; i < characterWidths.length && i < 256; i++) {
+                characterWidths[i] = Math.round(widths[i]);
+            }
+        }
+        if (!loggedArgentumAdjust) {
+            loggedArgentumAdjust = true;
+            log("Adjusted Argentum advances for the one-pixel gap");
+        }
+    }
+
     /** Used by the pack for resource listings. Only emits the fixed sheets. */
     public void findResources(String namespace, String path,
                               BiConsumer<NamespacedIdentifier, byte[]> consumer) {
@@ -295,11 +324,13 @@ public final class FontrEngine {
                     FontrSettings.debug);
                 sheets = created;
                 loadedPath = path;
+                String styles = FontrSettings.trueStyles
+                    ? (faces.bold != null ? " (real bold)" : " (synthetic bold)")
+                        + (faces.italic != null ? " (real italic)" : " (synthetic italic)")
+                        + (faces.boldItalic != null ? " (real bold-italic)" : " (synthetic bold-italic)")
+                    : " (styles off)";
                 LOGGER.info("[Fontr] Loaded " + path.getFileName() + " at "
-                    + FontrSettings.resolution + "px sheets"
-                    + (created.hasStyle(FontrFont.Style.BOLD) ? " (bold face)" : "")
-                    + (created.hasStyle(FontrFont.Style.ITALIC) ? " (italic face)" : "")
-                    + (created.hasStyle(FontrFont.Style.BOLD_ITALIC) ? " (bold-italic face)" : ""));
+                    + FontrSettings.resolution + "px sheets" + styles);
                 if (FontrSettings.applyToPolyCompose) {
                     PolyComposeFontBridge.install(path, faces.bold, faces.italic, faces.boldItalic);
                 }

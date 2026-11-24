@@ -3,6 +3,7 @@ package dev.faris0x.fontr.mixin;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
+import dev.faris0x.fontr.FontrEngine;
 import dev.faris0x.fontr.compat.ArgentumStyles;
 import dev.rdh.argentum.impl.render.gui.TextBatcher;
 import dev.rdh.argentum.impl.render.gui.font.FontSet;
@@ -29,6 +30,7 @@ public abstract class ArgentumTextBatcherMixin {
 
     @Inject(method = "readWidths", at = @At("RETURN"), remap = false, require = 0)
     private void fontr$readWidths(Identifier location, int[] characterWidths, CallbackInfo ci) {
+        FontrEngine.INSTANCE.adjustArgentumWidths(this.widths, characterWidths);
         ArgentumStyles.setWidths(this.widths);
     }
 

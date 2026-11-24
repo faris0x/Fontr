@@ -27,9 +27,16 @@ mixin joins letters with ICU and reorders right-to-left runs, and the same
 transform is applied to the width/trim helpers so layout stays consistent.
 
 The ASCII sheet follows Minecraft's legacy cell grid, so cell `0xFE` is `■`
-(not `þ`) and the box-drawing range matches vanilla. Cap height and baseline are
-computed from the font's own letters/descenders so glyphs are not clipped by the
-8px line; outliers are squeezed per glyph. Fallback glyphs (codepoints missing
+(not `þ`) and the box-drawing range matches vanilla. Each glyph is rendered at
+its full natural ink width and the width table carries vanilla's one-pixel gap,
+so characters are not squeezed or clipped at the sample boundary. Cap height and
+baseline are computed from the font's own letters/descenders so glyphs are not
+clipped by the 8px line.
+
+Unicode pages are fitted **per block**: blocks with taller scripts (Arabic, CJK,
+…) get their own size and baseline inside the 16px cell, so Arabic uses the full
+line instead of being clipped by the Latin metrics. Diacritic marks are excluded
+from the metrics so they cannot shrink an entire block. Fallback glyphs (codepoints missing
 from the selected font) are rasterised from the configured system fallback; if
 that also lacks a glyph, the pack's original cell is kept.
 
@@ -75,6 +82,8 @@ Changing a setting reloads resources automatically.
 - **Bold / Italic / Bold-italic font** — optional; empty auto-detects faces.
 - **Glyph scale** — scales the fitted size. `1.0` is the largest size that fits
   the 8px line without clipping; higher values may clip.
+- **Letter spacing** — extra pixels between glyphs; negative tightens text. The
+  default includes vanilla's built-in one-pixel gap.
 - **Letter spacing** — extra pixels between glyphs; negative tightens text.
 - **Embolden** — strokes glyph outlines for thin fonts at 8px.
 - **Antialiasing** — off for pixel fonts.

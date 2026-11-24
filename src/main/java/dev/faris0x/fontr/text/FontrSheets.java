@@ -7,8 +7,12 @@ import org.apache.logging.log4j.Logger;
 import javax.imageio.ImageIO;
 import java.awt.AlphaComposite;
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphVector;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -20,20 +24,31 @@ import java.util.Map;
 /**
  * Builds vanilla-shaped font sheets from a TTF.
  *
- * <p>The ASCII sheet is a 16x16 grid filled with the glyphs 1.8.9 expects in each
- * legacy cell. Unicode pages stay at vanilla's 256x256 layout so every consumer
- * can read them; they are generated lazily per covered block. Bold/italic sheets
- * are only generated when real faces are available.</p>
+ * <p>The ASCII sheet uses Minecraft's legacy cell grid and full natural glyph
+ * ink (vanilla draws one pixel less than the width table says). Unicode pages
+ * stay at 256x256, are generated lazily per covered block, and are fitted
+ * per block so scripts with taller glyphs (Arabic, CJK, ...) use the full cell
+ * instead of being clipped by the Latin line.</p>
  */
 public final class FontrSheets {
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
     private static final int UNICODE_PAGE = 256;
     private static final int UNICODE_CELL = 16;
-    private static final int UNICODE_SCALE = 2;
 
     /** Reads a resource from the packs underneath Fontr. */
     public interface BaseProvider {
         InputStream open(String path);
+    }
+
+    private static final class BlockFit {
+        final float scale;
+        final float baseline;
+        final int[] advances = new int[256];
+
+        BlockFit(float scale, float baseline) {
+            this.scale = scale;
+            this.baseline = baseline;
+        }
     }
 
     private final FontrFont font;
@@ -47,6 +62,7 @@ public final class FontrSheets {
     private final boolean debug;
 
     private final Map<Style, byte[]> styledPng = new HashMap<Style, byte[]>();
+    private final Map<Integer, BlockFit> blockFits = new HashMap<Integer, BlockFit>();
     private byte[] glyphSizes;
     private final Map<Integer, byte[]> unicodePng = new HashMap<Integer, byte[]>();
 
@@ -127,13 +143,18 @@ public final class FontrSheets {
         if (original != null && original.length == 65536) {
             System.arraycopy(original, 0, result, 0, result.length);
         }
-        for (int codepoint = 0x20; codepoint < 0x10000; codepoint++) {
-            if (!renderable(codepoint) || !font.canDisplay(codepoint)) {
+        for (int block = 0; block < 256; block++) {
+            BlockFit fit = blockFit(block);
+            if (fit == null) {
                 continue;
             }
-            int advance = codepoint == 0x20 ? 4 : advance(codepoint);
-            int end = Math.min(15, Math.max(0, advance * 2 - 1));
-            result[codepoint] = (byte) end;
+            for (int offset = 0; offset < 256; offset++) {
+                int advance = fit.advances[offset];
+                if (advance <= 0) {
+                    continue;
+                }
+                result[(block << 8) + offset] = (byte) Math.min(15, advance * 2 - 1);
+            }
         }
         glyphSizes = result;
         writeCache("glyph_sizes.bin", result);
@@ -146,7 +167,8 @@ public final class FontrSheets {
             return unicodePng.get(block);
         }
         String name = String.format("unicode_page_%02x.png", block);
-        if (!font.hasCoverage(block)) {
+        BlockFit fit = blockFit(block);
+        if (fit == null) {
             unicodePng.put(block, null);
             return null;
         }
@@ -155,7 +177,7 @@ public final class FontrSheets {
             unicodePng.put(block, cached);
             return cached;
         }
-        byte[] png = encode(buildUnicode(block), name);
+        byte[] png = encode(buildUnicode(block, fit), name);
         unicodePng.put(block, png);
         if (debug) {
             log("Generated unicode page " + String.format("%02x", block));
@@ -191,7 +213,7 @@ public final class FontrSheets {
             int advance = advance(codepoint);
             graphics.setClip(x, y, cell, cell);
             font.drawGlyph(graphics, codepoint, scale, x, y + baseline,
-                (float) (advance - 1) * scale, embolden, style);
+                (float) (advance - 1) * scale, embolden, style, y, y + cell);
             graphics.setClip(null);
 
             // readFontTexture() derives advances from the rightmost non-transparent
@@ -207,7 +229,7 @@ public final class FontrSheets {
         return sheet;
     }
 
-    private BufferedImage buildUnicode(int block) {
+    private BufferedImage buildUnicode(int block, BlockFit fit) {
         BufferedImage page = new BufferedImage(UNICODE_PAGE, UNICODE_PAGE, BufferedImage.TYPE_INT_ARGB);
         BufferedImage baseImage = readBaseImage(String.format("textures/font/unicode_page_%02x.png", block));
         Graphics2D graphics = page.createGraphics();
@@ -219,16 +241,14 @@ public final class FontrSheets {
             graphics.drawImage(baseImage, 0, 0, UNICODE_PAGE, UNICODE_PAGE, null);
         }
 
-        int baseline = Math.round(font.baseline() * UNICODE_SCALE);
         int start = block << 8;
         for (int offset = 0; offset < 256; offset++) {
             int codepoint = start + offset;
-            if (codepoint < 0x20 || !font.canDisplay(codepoint)) {
+            if (codepoint < 0x20 || !font.canDisplay(codepoint) || fit.advances[offset] <= 0) {
                 continue;
             }
             int x = (offset & 15) * UNICODE_CELL;
             int y = (offset >> 4) * UNICODE_CELL;
-            int advance = advance(codepoint);
 
             // Replace the whole cell, otherwise the pack's glyph can show through
             // around our narrower/shorter one.
@@ -236,8 +256,8 @@ public final class FontrSheets {
             graphics.setColor(new Color(0, 0, 0, 0));
             graphics.fillRect(x, y, UNICODE_CELL, UNICODE_CELL);
             graphics.setColor(Color.WHITE);
-            font.drawGlyph(graphics, codepoint, UNICODE_SCALE, x, y + baseline,
-                (float) (advance - 1) * UNICODE_SCALE, embolden, Style.REGULAR);
+            font.drawGlyph(graphics, codepoint, fit.scale, x, y + fit.baseline,
+                (float) fit.advances[offset] * 2.0F, embolden, Style.REGULAR, y, y + UNICODE_CELL);
             graphics.setClip(null);
         }
         graphics.dispose();
@@ -245,8 +265,101 @@ public final class FontrSheets {
         return page;
     }
 
+    /** Advance in the 8px line, including vanilla's one-pixel gap. */
     private int advance(int codepoint) {
-        return Math.max(2, Math.min(8, Math.round(font.advance(codepoint) + letterSpacing)));
+        return Math.max(2, Math.min(8, Math.round(font.advance(codepoint) + letterSpacing) + 1));
+    }
+
+    private BlockFit blockFit(int block) {
+        if (blockFits.containsKey(block)) {
+            return blockFits.get(block);
+        }
+        BlockFit fit = computeBlockFit(block);
+        blockFits.put(block, fit);
+        return fit;
+    }
+
+    private BlockFit computeBlockFit(int block) {
+        int start = block << 8;
+        if (block == 0) {
+            BlockFit fit = new BlockFit(1.0F, font.baseline() * 2.0F);
+            for (int offset = 0x20; offset < 0x100; offset++) {
+                int codepoint = start + offset;
+                if (renderable(codepoint) && font.canDisplay(codepoint)) {
+                    fit.advances[offset] = codepoint == 0x20 ? 4 : Math.max(1, advance(codepoint) - 1);
+                }
+            }
+            return fit;
+        }
+
+        java.util.List<Integer> codepoints = new java.util.ArrayList<Integer>();
+        for (int offset = 0; offset < 256; offset++) {
+            int codepoint = start + offset;
+            if (renderable(codepoint) && font.canDisplay(codepoint)) {
+                codepoints.add(codepoint);
+            }
+        }
+        if (codepoints.isEmpty()) {
+            return null;
+        }
+
+        FontRenderContext frc = font.frc();
+        float probeAscent = 0.0F;
+        float probeDescent = 0.0F;
+        for (int i = 0; i < codepoints.size(); i++) {
+            int codepoint = codepoints.get(i);
+            if (isMark(codepoint)) {
+                // Diacritics are positioned by their base letter and often have
+                // extreme standalone bounds; they must not shrink the whole block.
+                continue;
+            }
+            Font face = font.fontForCodepoint(codepoint).deriveFont(Font.PLAIN, 100.0F);
+            try {
+                char[] chars = chars(codepoint);
+                GlyphVector vector = face.layoutGlyphVector(frc, chars, 0, chars.length,
+                    Font.LAYOUT_LEFT_TO_RIGHT);
+                Rectangle bounds = vector.getPixelBounds(frc, 0, 0);
+                if (bounds.height <= 0) {
+                    continue;
+                }
+                probeAscent = Math.max(probeAscent, -(float) bounds.y);
+                probeDescent = Math.max(probeDescent, (float) (bounds.y + bounds.height));
+            } catch (Throwable ignored) {
+            }
+        }
+
+        float total = probeAscent + probeDescent;
+        float blockSize = font.pointSize();
+        if (total > 0.0F) {
+            blockSize = Math.min(blockSize, (UNICODE_CELL - 0.4F) * 100.0F / total);
+        }
+        float scale = Math.max(0.1F, blockSize / Math.max(1.0F, font.pointSize()));
+        float baseline = total > 0.0F ? (probeAscent / 100.0F) * blockSize : font.baseline() * 2.0F;
+        baseline = Math.max(0.0F, Math.min((float) UNICODE_CELL, baseline));
+
+        BlockFit fit = new BlockFit(scale, baseline);
+        for (int offset = 0; offset < 256; offset++) {
+            int codepoint = start + offset;
+            if (!renderable(codepoint) || !font.canDisplay(codepoint)) {
+                continue;
+            }
+            int advance = 4;
+            try {
+                Font face = font.fontForCodepoint(codepoint).deriveFont(Font.PLAIN, blockSize);
+                char[] chars = chars(codepoint);
+                GlyphVector vector = face.layoutGlyphVector(frc, chars, 0, chars.length,
+                    Font.LAYOUT_LEFT_TO_RIGHT);
+                advance = (int) Math.round(vector.getGlyphPosition(vector.getNumGlyphs()).getX() / 2.0F);
+            } catch (Throwable ignored) {
+            }
+            fit.advances[offset] = Math.max(1, Math.min(8, advance));
+        }
+        if (debug) {
+            log("Unicode block " + String.format("%02x", block) + " size="
+                + String.format(java.util.Locale.ROOT, "%.2f", blockSize) + " baseline="
+                + String.format(java.util.Locale.ROOT, "%.2f", baseline));
+        }
+        return fit;
     }
 
     /**
@@ -339,6 +452,12 @@ public final class FontrSheets {
         }
     }
 
+    private static boolean isMark(int codepoint) {
+        int type = Character.getType(codepoint);
+        return type == Character.NON_SPACING_MARK || type == Character.ENCLOSING_MARK
+            || type == Character.COMBINING_SPACING_MARK;
+    }
+
     private static boolean renderable(int codepoint) {
         if (codepoint < 0x20 || (codepoint >= 0x7F && codepoint < 0xA0)) {
             return false;
@@ -348,6 +467,10 @@ public final class FontrSheets {
         }
         int type = Character.getType(codepoint);
         return type != Character.UNASSIGNED && type != Character.CONTROL && type != Character.FORMAT;
+    }
+
+    private static char[] chars(int codepoint) {
+        return new String(Character.toChars(codepoint)).toCharArray();
     }
 
     private void log(String message) {
