@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "fontr",
+	"version": "${version}",
+	"name": "Fontr",
+	"description": "A TrueType/OpenType replacement for Minecraft's bitmap font, with Arabic shaping, pixel-font support and OneConfig settings.",
+	"authors": [
+		"Faris"
+	],
+	"contact": {
+		"homepage": "https://faris0x.dev",
+		"sources": "https://faris0x.dev"
+	},
+	"license": "MIT",
+	"icon": "assets/fontr/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"dev.faris0x.fontr.Fontr"
+		]
+	},
+	"mixins": [
+		"fontr.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "1.8.9",
+		"oneconfigv1": ">=1.9.0"
+	}
+}
