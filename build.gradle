@@ -29,6 +29,7 @@ dependencies {
 	compileOnly("org.polyfrost.oneconfig:config:${project.oneconfig_version}") { transitive = false }
 	compileOnly("org.polyfrost.oneconfig:config-impl:${project.oneconfig_version}") { transitive = false }
 	compileOnly("org.polyfrost.oneconfig:hud:${project.oneconfig_version}") { transitive = false }
+	compileOnly("io.github.llamalad7:mixinextras-fabric:0.5.5")
 }
 
 ploceus {
@@ -56,10 +57,17 @@ java {
 }
 
 jar {
+	// Signature-only stubs for the optional Argentum integration; never shipped.
+	exclude 'dev/rdh/**'
 	manifest {
 		attributes(
 			'Implementation-Title': 'Fontr',
 			'Implementation-Version': project.version
 		)
 	}
+}
+
+// Signature-only stubs for the optional Argentum integration; never shipped.
+tasks.withType(Jar).configureEach {
+	exclude 'dev/rdh/**'
 }

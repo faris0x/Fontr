@@ -8,53 +8,69 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
- * Registers the Fontr TTF with OneConfig's PolyCompose renderer so Compose-based
- * UI (the mod menu, OneConfig HUD modules) matches the in-game font.
- *
- * <p>This is additive: vanilla/Argentum/Cera text is served through the
- * generated font resources, not through this bridge.</p>
+ * Registers the Fontr faces with PolyCompose so Compose UI/HUD text matches the
+ * in-game font. Bold/italic family names get the real faces when available.
  */
 public final class PolyComposeFontBridge {
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
     private static final String MANAGER = "org.polyfrost.compose.render.FontManager";
-    private static final String FONTR_KEY = "fontr";
 
-    private static final String[] ALIASES = {
-        "poppins", "poppins-italic", "poppins-regular",
-        "poppins-thin", "poppins-thin-italic",
-        "poppins-medium", "poppins-medium-italic",
-        "poppins-semibold", "poppins-semibold-italic",
-        "poppins-bold", "poppins-bold-italic",
-        "poppins-black", "poppins-black-italic"
+    private static final String[] REGULAR = {
+        "fontr", "poppins", "poppins-regular", "poppins-thin", "poppins-medium"
+    };
+    private static final String[] BOLD = {
+        "poppins-bold", "poppins-semibold", "poppins-black"
+    };
+    private static final String[] ITALIC = {
+        "poppins-italic", "poppins-thin-italic", "poppins-medium-italic"
+    };
+    private static final String[] BOLD_ITALIC = {
+        "poppins-bold-italic", "poppins-semibold-italic", "poppins-black-italic"
     };
 
     private static volatile boolean installed;
     private static volatile boolean unavailable;
+    private static volatile Map<String, byte[]> expected = new LinkedHashMap<String, byte[]>();
 
     private PolyComposeFontBridge() {
     }
 
-    public static void install(Path path) {
-        if (!FontrSettings.applyToPolyCompose || installed) {
+    public static void install(Path regular) {
+        install(regular, null, null, null);
+    }
+
+    public static synchronized void install(Path regular, Path bold, Path italic, Path boldItalic) {
+        if (!FontrSettings.applyToPolyCompose) {
             return;
         }
         try {
-            byte[] bytes = Files.readAllBytes(path);
+            byte[] regularBytes = Files.readAllBytes(regular);
+            byte[] boldBytes = readOr(bold, regularBytes);
+            byte[] italicBytes = readOr(italic, regularBytes);
+            byte[] boldItalicBytes = readOr(boldItalic, regularBytes);
+
+            Map<String, byte[]> aliases = new LinkedHashMap<String, byte[]>();
+            put(aliases, REGULAR, regularBytes);
+            put(aliases, BOLD, boldBytes);
+            put(aliases, ITALIC, italicBytes);
+            put(aliases, BOLD_ITALIC, boldItalicBytes);
+
             Class<?> managerClass = Class.forName(MANAGER);
             Object manager = managerClass.getField("INSTANCE").get(null);
             Method register = managerClass.getMethod("register", String.class, byte[].class, boolean.class);
             Method setDefault = managerClass.getMethod("setDefault", String.class);
 
-            register.invoke(manager, FONTR_KEY, bytes, false);
-            for (String alias : ALIASES) {
-                register.invoke(manager, alias, bytes, false);
+            for (Map.Entry<String, byte[]> alias : aliases.entrySet()) {
+                register.invoke(manager, alias.getKey(), alias.getValue(), false);
             }
-            setDefault.invoke(manager, FONTR_KEY);
+            setDefault.invoke(manager, "fontr");
+            expected = aliases;
             installed = true;
+            unavailable = false;
             LOGGER.info("[Fontr] Registered font with PolyCompose");
         } catch (ClassNotFoundException e) {
             unavailable = true;
@@ -64,31 +80,43 @@ public final class PolyComposeFontBridge {
         }
     }
 
+    private static void put(Map<String, byte[]> map, String[] names, byte[] bytes) {
+        for (String name : names) {
+            map.put(name, bytes);
+        }
+    }
+
+    private static byte[] readOr(Path path, byte[] fallback) {
+        if (path == null) {
+            return fallback;
+        }
+        try {
+            return Files.readAllBytes(path);
+        } catch (Throwable t) {
+            return fallback;
+        }
+    }
+
     public static boolean isInstalled() {
         return installed;
     }
 
-    /** Re-registers aliases after a resource reload, in case another mod replaced them. */
-    public static void reassert(Path path) {
-        if (!installed || unavailable || !FontrSettings.applyToPolyCompose) {
+    /** Re-registers aliases after OneConfig or a resource reload replaced them. */
+    public static void reassert() {
+        Map<String, byte[]> aliases = expected;
+        if (!installed || unavailable || aliases.isEmpty() || !FontrSettings.applyToPolyCompose) {
             return;
         }
         try {
-            byte[] bytes = Files.readAllBytes(path);
             Class<?> managerClass = Class.forName(MANAGER);
             Object manager = managerClass.getField("INSTANCE").get(null);
             Method fontData = managerClass.getMethod("fontData", String.class);
             Method register = managerClass.getMethod("register", String.class, byte[].class, boolean.class);
-            List<String> names = new ArrayList<String>();
-            names.add(FONTR_KEY);
-            for (String alias : ALIASES) {
-                names.add(alias);
-            }
             boolean changed = false;
-            for (String name : names) {
-                Object existing = fontData.invoke(manager, name);
-                if (existing != bytes) {
-                    register.invoke(manager, name, bytes, false);
+            for (Map.Entry<String, byte[]> alias : aliases.entrySet()) {
+                Object existing = fontData.invoke(manager, alias.getKey());
+                if (existing != alias.getValue()) {
+                    register.invoke(manager, alias.getKey(), alias.getValue(), false);
                     changed = true;
                 }
             }

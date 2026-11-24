@@ -8,52 +8,107 @@ import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
- * The loaded TTF/OTF and its metrics, expressed in Minecraft's 8px font space.
- *
- * <p>Cap height is normalised to {@code (fontSize - 1) * fontScale} logical
- * pixels, so generated glyphs line up with vanilla's 8px line and baseline at
- * 7px.</p>
+ * The loaded TTF/OTF faces and their metrics, expressed in Minecraft's 8px font
+ * space. Cap height is normalised to the requested line, then shrunk if the
+ * font's own ascent + descent would overrun the 8px cell.
  */
 public final class FontrFont {
-    /** Vanilla's text line is 8px tall with the baseline at y=7. */
+    public enum Style {
+        REGULAR, BOLD, ITALIC, BOLD_ITALIC
+    }
+
+    /** Vanilla's text line is 8px tall. */
     public static final int LINE = 8;
-    public static final int BASELINE = 7;
 
     private final Font base;
+    private final Font bold;
+    private final Font italic;
+    private final Font boldItalic;
     private final Font fallback;
     private final FontRenderContext frc;
     private final boolean antialias;
-    private final float capLogical;
+    private final float baseline;
 
-    private FontrFont(Font base, Font fallback, FontRenderContext frc, boolean antialias,
-                      float capLogical) {
+    private FontrFont(Font base, Font bold, Font italic, Font boldItalic, Font fallback,
+                      FontRenderContext frc, boolean antialias, float baseline) {
         this.base = base;
+        this.bold = bold;
+        this.italic = italic;
+        this.boldItalic = boldItalic;
         this.fallback = fallback;
         this.frc = frc;
         this.antialias = antialias;
-        this.capLogical = capLogical;
+        this.baseline = baseline;
     }
 
-    public static FontrFont load(Path path, int fontSize, float fontScale, boolean antialias,
+    public static FontrFont load(Path regular, Path boldPath, Path italicPath, Path boldItalicPath,
+                                 int fontSize, float fontScale, boolean antialias,
                                  String fallbackName) throws Exception {
-        Font created = Font.createFont(Font.TRUETYPE_FONT, path.toFile());
+        Font created = read(regular);
         FontRenderContext frc = new FontRenderContext(null, true, false);
-        float capLogical = Math.min(7.0F, Math.max(4.0F, (fontSize - 1) * fontScale));
+        float capTarget = (float) Math.max(4, fontSize - 1);
 
-        Font base = derive(created, capLogical, frc);
+        Font base = derive(created, capTarget, frc);
+        float[] metrics = measure(base, frc);
+        float ascent = metrics[0];
+        float descent = metrics[1];
+        float required = ascent + descent;
+        if (required > LINE + 0.5F && required > 0.0F) {
+            // Allow half a pixel of overflow (clipped like vanilla) instead of
+            // shrinking every glyph for a single tall bracket or accent.
+            float fit = Math.max(0.85F, Math.min(1.0F, (LINE + 0.5F) / required));
+            base = base.deriveFont(base.getSize2D() * fit);
+            metrics = measure(base, frc);
+            ascent = metrics[0];
+            descent = metrics[1];
+        }
+        float user = Math.max(0.5F, Math.min(1.5F, fontScale));
+        if (user != 1.0F) {
+            base = base.deriveFont(base.getSize2D() * user);
+            ascent *= user;
+            descent *= user;
+        }
+        float baseline = Math.max(0.0F, Math.min(7.0F, ascent));
+
+        Font bold = face(boldPath, regular, base);
+        Font italic = face(italicPath, regular, base);
+        Font boldItalic = face(boldItalicPath, regular, base);
         Font fallback = null;
         if (fallbackName != null) {
-            Font candidate = new Font(fallbackName, Font.PLAIN, 1).deriveFont(100.0F);
-            if (canDisplayFamily(candidate)) {
-                fallback = derive(candidate, capLogical, frc);
+            try {
+                Font candidate = new Font(fallbackName, Font.PLAIN, 1).deriveFont(base.getSize2D());
+                if (candidate.canDisplay('A')) {
+                    fallback = candidate;
+                }
+            } catch (Throwable ignored) {
             }
         }
-        return new FontrFont(base, fallback, frc, antialias, capLogical);
+        return new FontrFont(base, bold, italic, boldItalic, fallback, frc, antialias, baseline);
     }
 
-    private static Font derive(Font font, float capLogical, FontRenderContext frc) {
+    private static Font read(Path path) throws Exception {
+        return Font.createFont(Font.TRUETYPE_FONT, path.toFile());
+    }
+
+    private static Font face(Path path, Path regular, Font sized) {
+        if (path == null) {
+            return null;
+        }
+        try {
+            if (regular != null && path.toAbsolutePath().equals(regular.toAbsolutePath())) {
+                return null;
+            }
+            return read(path).deriveFont(Font.PLAIN, sized.getSize2D());
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static Font derive(Font font, float capTarget, FontRenderContext frc) {
         Font probe = font.deriveFont(Font.PLAIN, 100.0F);
         float capRatio = 0.7F;
         try {
@@ -64,20 +119,61 @@ public final class FontrFont {
             }
         } catch (Throwable ignored) {
         }
-        float size = Math.max(1.0F, capLogical / capRatio);
+        float size = Math.max(1.0F, capTarget / capRatio);
         return probe.deriveFont(Font.PLAIN, size);
     }
 
-    private static boolean canDisplayFamily(Font candidate) {
-        try {
-            return candidate.canDisplay('A');
-        } catch (Throwable t) {
-            return false;
+    /** Returns {maxAscent, maxDescent} over the glyphs actually rendered. */
+    private static float[] measure(Font font, FontRenderContext frc) {
+        float ascent = 0.0F;
+        float descent = 0.0F;
+        Set<Integer> codepoints = new LinkedHashSet<Integer>();
+        for (int cp = (int) '0'; cp <= (int) '9'; cp++) {
+            codepoints.add(cp);
         }
+        for (int cp = (int) 'A'; cp <= (int) 'Z'; cp++) {
+            codepoints.add(cp);
+        }
+        for (int cp = (int) 'a'; cp <= (int) 'z'; cp++) {
+            codepoints.add(cp);
+        }
+        codepoints.add((int) ',');
+        codepoints.add((int) ';');
+        codepoints.add((int) 'g');
+        codepoints.add((int) 'j');
+        codepoints.add((int) 'p');
+        codepoints.add((int) 'q');
+        codepoints.add((int) 'y');
+
+        for (int cp : codepoints) {
+            if (!font.canDisplay(cp)) {
+                continue;
+            }
+            try {
+                char[] chars = chars(cp);
+                GlyphVector vector = font.layoutGlyphVector(frc, chars, 0, chars.length,
+                    Font.LAYOUT_LEFT_TO_RIGHT);
+                java.awt.Rectangle bounds = vector.getPixelBounds(frc, 0, 0);
+                if (bounds.height <= 0) {
+                    continue;
+                }
+                ascent = Math.max(ascent, -(float) bounds.y);
+                descent = Math.max(descent, (float) (bounds.y + bounds.height));
+            } catch (Throwable ignored) {
+            }
+        }
+        return new float[]{ascent, descent};
     }
 
-    public float capLogical() {
-        return capLogical;
+    public float baseline() {
+        return baseline;
+    }
+
+    public boolean hasStyle(Style style) {
+        if (style == Style.REGULAR) {
+            return true;
+        }
+        return face(style) != null;
     }
 
     public boolean canDisplay(int codepoint) {
@@ -90,12 +186,14 @@ public final class FontrFont {
         return fallback != null && fallback.canDisplay(codepoint);
     }
 
-    /** Advance in Minecraft pixels (1..8), matching vanilla's integer widths. */
+    /** Advance in Minecraft pixels (1..8) from the regular face. */
     public int advance(int codepoint) {
         int advance = 4;
         try {
+            Font font = base.canDisplay(codepoint) || fallback == null || !fallback.canDisplay(codepoint)
+                ? base : fallback;
             char[] chars = chars(codepoint);
-            GlyphVector vector = fontFor(codepoint).layoutGlyphVector(frc, chars, 0, chars.length,
+            GlyphVector vector = font.layoutGlyphVector(frc, chars, 0, chars.length,
                 Font.LAYOUT_LEFT_TO_RIGHT);
             advance = (int) Math.round(vector.getGlyphPosition(vector.getNumGlyphs()).getX());
         } catch (Throwable ignored) {
@@ -103,47 +201,50 @@ public final class FontrFont {
         return Math.max(1, Math.min(8, advance));
     }
 
-    /** True if at least one renderable codepoint in the block has a glyph. */
     public boolean hasCoverage(int block) {
         int start = block << 8;
         for (int codepoint = start; codepoint < start + 256; codepoint++) {
-            if (!renderable(codepoint)) {
-                continue;
-            }
-            if (canDisplay(codepoint)) {
+            if (renderable(codepoint) && canDisplay(codepoint)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean renderable(int codepoint) {
-        if (codepoint < 0x20 || (codepoint >= 0x7F && codepoint < 0xA0)) {
-            return false;
+    private Font face(Style style) {
+        switch (style) {
+            case BOLD:
+                return bold;
+            case ITALIC:
+                return italic;
+            case BOLD_ITALIC:
+                return boldItalic;
+            default:
+                return base;
         }
-        if (codepoint >= 0xD800 && codepoint <= 0xDFFF) {
-            return false;
-        }
-        int type = Character.getType(codepoint);
-        return type != Character.UNASSIGNED && type != Character.CONTROL && type != Character.FORMAT;
     }
 
-    private Font fontFor(int codepoint) {
-        if (base.canDisplay(codepoint) || fallback == null || !fallback.canDisplay(codepoint)) {
+    private Font faceFor(int codepoint, Style style) {
+        Font styled = face(style);
+        if (styled != null && styled.canDisplay(codepoint)) {
+            return styled;
+        }
+        if (base.canDisplay(codepoint)) {
             return base;
         }
-        return fallback;
+        if (fallback != null && fallback.canDisplay(codepoint)) {
+            return fallback;
+        }
+        return base;
     }
 
     /**
      * Draws one glyph with its pen at {@code x} and baseline at {@code y}.
-     *
-     * @param scale      sheet scale (1 = 8px cells, 32 = 256px cells, ...)
-     * @param maxAdvance maximum ink width in sheet pixels
+     * Any overflow is scaled down uniformly instead of being clipped.
      */
     public void drawGlyph(Graphics2D graphics, int codepoint, float scale, float x, float y,
-                          float maxAdvance, float embolden) {
-        Font chosen = fontFor(codepoint);
+                          float maxAdvance, float embolden, Style style) {
+        Font chosen = faceFor(codepoint, style);
         Font font = chosen.deriveFont(Font.PLAIN, chosen.getSize2D() * scale);
         graphics.setFont(font);
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
@@ -160,26 +261,42 @@ public final class FontrFont {
             return;
         }
 
-        float scaleX = 1.0F;
+        float squeeze = 1.0F;
         try {
             java.awt.Rectangle bounds = vector.getPixelBounds(frc, x, y);
-            float inkRight = bounds.x + bounds.width;
-            if (inkRight - x > maxAdvance && inkRight > x) {
-                scaleX = Math.max(0.2F, maxAdvance / (inkRight - x));
+            if (bounds.width > 0 && bounds.height > 0) {
+                float inkRight = bounds.x + bounds.width;
+                if (maxAdvance > 0.0F && inkRight - x > maxAdvance) {
+                    squeeze = Math.min(squeeze, maxAdvance / (inkRight - x));
+                }
+                float top = y - baseline * scale;
+                float bottom = top + (float) LINE * scale;
+                float vertical = 1.0F;
+                if (bounds.y < top) {
+                    vertical = Math.min(vertical, (y - top) / Math.max(1.0F, y - bounds.y));
+                }
+                float inkBottom = bounds.y + bounds.height;
+                if (inkBottom > bottom) {
+                    vertical = Math.min(vertical, (bottom - y) / Math.max(1.0F, inkBottom - y));
+                }
+                if (vertical >= 0.8F) {
+                    squeeze = Math.min(squeeze, vertical);
+                }
             }
         } catch (Throwable ignored) {
         }
+        squeeze = Math.max(0.2F, Math.min(1.0F, squeeze));
 
         Shape clip = graphics.getClip();
         java.awt.geom.AffineTransform old = graphics.getTransform();
         graphics.translate(x, y);
-        if (scaleX != 1.0F) {
-            graphics.scale(scaleX, 1.0F);
+        if (squeeze != 1.0F) {
+            graphics.scale(squeeze, squeeze);
         }
         graphics.drawGlyphVector(vector, 0.0F, 0.0F);
         if (embolden > 0.0F) {
             java.awt.Stroke previous = graphics.getStroke();
-            graphics.setStroke(new java.awt.BasicStroke(Math.max(0.2F, embolden * scale),
+            graphics.setStroke(new java.awt.BasicStroke(Math.max(0.2F, embolden * scale * squeeze),
                 java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
             graphics.draw(vector.getOutline(0.0F, 0.0F));
             graphics.setStroke(previous);
@@ -188,6 +305,17 @@ public final class FontrFont {
         if (clip != null) {
             graphics.setClip(clip);
         }
+    }
+
+    private static boolean renderable(int codepoint) {
+        if (codepoint < 0x20 || (codepoint >= 0x7F && codepoint < 0xA0)) {
+            return false;
+        }
+        if (codepoint >= 0xD800 && codepoint <= 0xDFFF) {
+            return false;
+        }
+        int type = Character.getType(codepoint);
+        return type != Character.UNASSIGNED && type != Character.CONTROL && type != Character.FORMAT;
     }
 
     private static char[] chars(int codepoint) {

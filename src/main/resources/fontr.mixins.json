@@ -6,7 +6,9 @@
 	"client": [
 		"SimpleTextureFilterMixin",
 		"MinecraftTickMixin",
-		"TextTransformMixin"
+		"TextTransformMixin",
+		"StyleGlyphMixin",
+		"ArgentumTextBatcherMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

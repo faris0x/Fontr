@@ -1,10 +1,12 @@
 package dev.faris0x.fontr.text;
 
+import dev.faris0x.fontr.text.FontrFont.Style;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.imageio.ImageIO;
 import java.awt.AlphaComposite;
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -12,14 +14,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Builds vanilla-shaped font sheets from a TTF.
  *
- * <p>The ASCII sheet is a 16x16 grid at the configured resolution (4096 by
- * default, 8192 optionally). Unicode pages stay at vanilla's 256x256 layout so
- * every 1.8.9 consumer (vanilla, Argentum, Cera) can read them unchanged, and
- * are generated lazily for the blocks the font actually covers.</p>
+ * <p>The ASCII sheet is a 16x16 grid filled with the glyphs 1.8.9 expects in each
+ * legacy cell. Unicode pages stay at vanilla's 256x256 layout so every consumer
+ * can read them; they are generated lazily per covered block. Bold/italic sheets
+ * are only generated when real faces are available.</p>
  */
 public final class FontrSheets {
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
@@ -34,20 +38,25 @@ public final class FontrSheets {
 
     private final FontrFont font;
     private final int resolution;
+    private final int styledResolution;
+    private final boolean trueStyles;
     private final Path cacheDir;
     private final BaseProvider base;
     private final float letterSpacing;
     private final float embolden;
     private final boolean debug;
 
-    private byte[] asciiPng;
+    private final Map<Style, byte[]> styledPng = new HashMap<Style, byte[]>();
     private byte[] glyphSizes;
-    private final java.util.Map<Integer, byte[]> unicodePng = new java.util.HashMap<Integer, byte[]>();
+    private final Map<Integer, byte[]> unicodePng = new HashMap<Integer, byte[]>();
 
-    public FontrSheets(FontrFont font, int resolution, Path cacheDir, BaseProvider base,
-                       float letterSpacing, float embolden, boolean debug) {
+    public FontrSheets(FontrFont font, int resolution, int styledResolution, boolean trueStyles,
+                       Path cacheDir, BaseProvider base, float letterSpacing, float embolden,
+                       boolean debug) {
         this.font = font;
         this.resolution = resolution;
+        this.styledResolution = styledResolution;
+        this.trueStyles = trueStyles;
         this.cacheDir = cacheDir;
         this.base = base;
         this.letterSpacing = letterSpacing;
@@ -60,21 +69,47 @@ public final class FontrSheets {
         }
     }
 
-    public synchronized byte[] asciiPng() {
-        if (asciiPng != null) {
-            return asciiPng;
-        }
-        byte[] cached = readCache("ascii.png");
+    public synchronized byte[] asciiPng(Style style) {
+        Style actual = trueStyles && font.hasStyle(style) ? style : Style.REGULAR;
+        byte[] cached = styledPng.get(actual);
         if (cached != null) {
-            asciiPng = cached;
             return cached;
         }
+        String name = fileName(actual);
+        byte[] onDisk = readCache(name);
+        if (onDisk != null) {
+            styledPng.put(actual, onDisk);
+            return onDisk;
+        }
         long started = System.currentTimeMillis();
-        BufferedImage image = buildAscii();
-        asciiPng = encode(image, "ascii.png");
-        log("Generated " + resolution + "x" + resolution + " ASCII sheet in "
+        BufferedImage image = buildAscii(actual);
+        byte[] png = encode(image, name);
+        styledPng.put(actual, png);
+        log("Generated " + (actual == Style.REGULAR ? resolution : styledResolution) + "px "
+            + actual.name().toLowerCase(java.util.Locale.ROOT) + " ASCII sheet in "
             + (System.currentTimeMillis() - started) + "ms");
-        return asciiPng;
+        return png;
+    }
+
+    public byte[] regularPng() {
+        return asciiPng(Style.REGULAR);
+    }
+
+    public boolean hasStyle(Style style) {
+        return trueStyles && font.hasStyle(style);
+    }
+
+    private static String fileName(Style style) {
+        switch (style) {
+            case BOLD:
+                return "ascii_bold.png";
+            case ITALIC:
+                return "ascii_italic.png";
+            case BOLD_ITALIC:
+                return "ascii_bold_italic.png";
+            default:
+                return "ascii.png";
+        }
     }
 
     public synchronized byte[] glyphSizes() {
@@ -128,40 +163,41 @@ public final class FontrSheets {
         return png;
     }
 
-    private BufferedImage buildAscii() {
-        int cell = resolution / 16;
+    private BufferedImage buildAscii(Style style) {
+        int sheetSize = style == Style.REGULAR ? resolution : styledResolution;
+        int cell = sheetSize / 16;
         int scale = Math.max(1, cell / FontrFont.LINE);
-        BufferedImage sheet = new BufferedImage(resolution, resolution, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage sheet = new BufferedImage(sheetSize, sheetSize, BufferedImage.TYPE_INT_ARGB);
         BufferedImage baseImage = readBaseImage("textures/font/ascii.png");
         Graphics2D graphics = sheet.createGraphics();
         graphics.setComposite(AlphaComposite.Src);
-        graphics.setColor(java.awt.Color.WHITE);
+        graphics.setColor(Color.WHITE);
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
             RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
-        for (int codepoint = 0x20; codepoint < 0x100; codepoint++) {
-            int col = codepoint & 15;
-            int row = codepoint >> 4;
-            int x = col * cell;
-            int y = row * cell;
-            if (codepoint == 0x20) {
-                continue; // vanilla hardcodes a 4px space
+        int baseline = Math.round(font.baseline() * scale);
+        for (int index = 0; index < 256; index++) {
+            int codepoint = LegacyFontGrid.codepoint(index);
+            int x = (index & 15) * cell;
+            int y = (index >> 4) * cell;
+            if (codepoint == 0 || codepoint == 0x20) {
+                continue;
             }
             if (!font.canDisplay(codepoint)) {
-                copyCell(graphics, baseImage, codepoint, x, y, cell);
+                copyCell(graphics, baseImage, index, x, y, cell);
                 continue;
             }
 
             int advance = advance(codepoint);
             graphics.setClip(x, y, cell, cell);
-            font.drawGlyph(graphics, codepoint, scale, x, y + (float) FontrFont.BASELINE * scale,
-                (float) (advance - 1) * scale, embolden);
+            font.drawGlyph(graphics, codepoint, scale, x, y + baseline,
+                (float) (advance - 1) * scale, embolden, style);
             graphics.setClip(null);
 
             // readFontTexture() derives advances from the rightmost non-transparent
             // column; mark the intended advance with an (invisible) alpha-1 pixel.
             int markerX = x + advance * scale - 1;
-            int markerY = y + FontrFont.BASELINE * scale;
+            int markerY = y + baseline;
             if (markerX >= x && markerX < x + cell && markerY >= y && markerY < y + cell) {
                 sheet.setRGB(markerX, markerY, 0x01FFFFFF);
             }
@@ -176,13 +212,14 @@ public final class FontrSheets {
         BufferedImage baseImage = readBaseImage(String.format("textures/font/unicode_page_%02x.png", block));
         Graphics2D graphics = page.createGraphics();
         graphics.setComposite(AlphaComposite.Src);
-        graphics.setColor(java.awt.Color.WHITE);
+        graphics.setColor(Color.WHITE);
         if (baseImage != null) {
             graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                 RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             graphics.drawImage(baseImage, 0, 0, UNICODE_PAGE, UNICODE_PAGE, null);
         }
 
+        int baseline = Math.round(font.baseline() * UNICODE_SCALE);
         int start = block << 8;
         for (int offset = 0; offset < 256; offset++) {
             int codepoint = start + offset;
@@ -192,10 +229,15 @@ public final class FontrSheets {
             int x = (offset & 15) * UNICODE_CELL;
             int y = (offset >> 4) * UNICODE_CELL;
             int advance = advance(codepoint);
+
+            // Replace the whole cell, otherwise the pack's glyph can show through
+            // around our narrower/shorter one.
             graphics.setClip(x, y, UNICODE_CELL, UNICODE_CELL);
-            font.drawGlyph(graphics, codepoint, UNICODE_SCALE, x,
-                y + (float) FontrFont.BASELINE * UNICODE_SCALE,
-                (float) (advance - 1) * UNICODE_SCALE, embolden);
+            graphics.setColor(new Color(0, 0, 0, 0));
+            graphics.fillRect(x, y, UNICODE_CELL, UNICODE_CELL);
+            graphics.setColor(Color.WHITE);
+            font.drawGlyph(graphics, codepoint, UNICODE_SCALE, x, y + baseline,
+                (float) (advance - 1) * UNICODE_SCALE, embolden, Style.REGULAR);
             graphics.setClip(null);
         }
         graphics.dispose();
@@ -203,7 +245,6 @@ public final class FontrSheets {
         return page;
     }
 
-    /** Advance in the 8px line, including the user's letter spacing. */
     private int advance(int codepoint) {
         return Math.max(2, Math.min(8, Math.round(font.advance(codepoint) + letterSpacing)));
     }
@@ -224,15 +265,15 @@ public final class FontrSheets {
         }
     }
 
-    private void copyCell(Graphics2D graphics, BufferedImage baseImage, int codepoint,
+    private void copyCell(Graphics2D graphics, BufferedImage baseImage, int index,
                           int x, int y, int cell) {
         if (baseImage == null) {
             return;
         }
         int baseCellW = baseImage.getWidth() / 16;
         int baseCellH = baseImage.getHeight() / 16;
-        int col = codepoint & 15;
-        int row = codepoint >> 4;
+        int col = index & 15;
+        int row = index >> 4;
         try {
             BufferedImage sub = baseImage.getSubimage(col * baseCellW, row * baseCellH,
                 baseCellW, baseCellH);

@@ -37,6 +37,33 @@ public final class FontrConfig extends Config {
     )
     public static String fontPath = "Fontr/font.ttf";
 
+    @File(
+        title = "Bold font (optional)",
+        description = "Leave empty to auto-detect a bold face next to the regular font.",
+        types = {"ttf", "otf"},
+        filterName = "Font files",
+        category = CATEGORY_FONT
+    )
+    public static String boldFont = "";
+
+    @File(
+        title = "Italic font (optional)",
+        description = "Leave empty to auto-detect an italic face next to the regular font.",
+        types = {"ttf", "otf"},
+        filterName = "Font files",
+        category = CATEGORY_FONT
+    )
+    public static String italicFont = "";
+
+    @File(
+        title = "Bold-italic font (optional)",
+        description = "Leave empty to auto-detect a bold-italic face next to the regular font.",
+        types = {"ttf", "otf"},
+        filterName = "Font files",
+        category = CATEGORY_FONT
+    )
+    public static String boldItalicFont = "";
+
     @Dropdown(
         title = "Sheet resolution",
         description = "Resolution of the generated ASCII sheet. 4096 is 32x supersampling (~85 MB VRAM); 8192 is 64x (~340 MB VRAM).",
@@ -47,13 +74,13 @@ public final class FontrConfig extends Config {
 
     @Slider(
         title = "Glyph scale",
-        description = "Adjusts cap height within the 8px line. 1.0 matches Mojangles' 7px caps.",
-        min = 0.7F,
-        max = 1.0F,
+        description = "Scales the fitted glyph size. 1.0 is the largest size that fits the 8px line without clipping; higher values may clip." ,
+        min = 0.8F,
+        max = 1.3F,
         step = 0.05F,
         category = CATEGORY_FONT
     )
-    public static float fontScale = 0.95F;
+    public static float fontScale = 1.0F;
 
     @Slider(
         title = "Letter spacing",
@@ -83,6 +110,21 @@ public final class FontrConfig extends Config {
     public static boolean antialias = true;
 
     @Dropdown(
+        title = "Styled sheet resolution",
+        description = "Resolution for the bold/italic sheets. 2048 keeps four sheets within a reasonable VRAM budget.",
+        options = {"2048 (recommended)", "4096 (maximum)"},
+        category = CATEGORY_FONT
+    )
+    public static String styledResolution = "2048 (recommended)";
+
+    @Switch(
+        title = "Use real bold/italic faces",
+        description = "Generate bold/italic sheets from the font's own faces instead of vanilla's double-draw.",
+        category = CATEGORY_FONT
+    )
+    public static boolean trueStyles = true;
+
+    @Dropdown(
         title = "Fallback",
         description = "Font used for codepoints missing from the main font.",
         options = {"None", "System SansSerif", "System Monospaced"},
@@ -103,6 +145,13 @@ public final class FontrConfig extends Config {
         category = CATEGORY_COMPAT
     )
     public static boolean arabicShaping = true;
+
+    @Switch(
+        title = "Real styles in Argentum text",
+        description = "Use real bold/italic sheets in Argentum's batched chat and nametags (requires faces).",
+        category = CATEGORY_COMPAT
+    )
+    public static boolean argentumStyles = true;
 
     @Switch(
         title = "Apply to OneConfig UI",
@@ -131,7 +180,14 @@ public final class FontrConfig extends Config {
         FontrSettings.enabled = enabled;
         FontrSettings.fontPath = fontPath == null || fontPath.trim().isEmpty()
             ? "Fontr/font.ttf" : fontPath.trim();
+        FontrSettings.boldFont = boldFont == null ? "" : boldFont.trim();
+        FontrSettings.italicFont = italicFont == null ? "" : italicFont.trim();
+        FontrSettings.boldItalicFont = boldItalicFont == null ? "" : boldItalicFont.trim();
         FontrSettings.resolution = resolution != null && resolution.startsWith("8192") ? 8192 : 4096;
+        FontrSettings.styledResolution = styledResolution != null && styledResolution.startsWith("4096")
+            ? 4096 : 2048;
+        FontrSettings.trueStyles = trueStyles;
+        FontrSettings.argentumStyles = argentumStyles;
         FontrSettings.fontSize = 8;
         FontrSettings.fontScale = fontScale;
         FontrSettings.letterSpacing = letterSpacing;

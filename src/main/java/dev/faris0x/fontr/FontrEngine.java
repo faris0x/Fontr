@@ -2,10 +2,12 @@ package dev.faris0x.fontr;
 
 import dev.faris0x.fontr.compat.FontrPack;
 import dev.faris0x.fontr.compat.PolyComposeFontBridge;
+import dev.faris0x.fontr.text.FontrFaces;
 import dev.faris0x.fontr.text.FontrFont;
 import dev.faris0x.fontr.text.FontrSheets;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resource.Identifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 import net.ornithemc.osl.core.api.util.function.IOSupplier;
@@ -47,6 +49,9 @@ public final class FontrEngine {
     private static final String GLYPH_SIZES_ALT = "textures/font/glyph_sizes.bin";
     private static final String UNICODE = "textures/font/unicode_page_";
     private static final String UNICODE_ALT = "font/unicode_page_";
+    private static final String STYLED_BOLD = "textures/font/fontr_ascii_bold.png";
+    private static final String STYLED_ITALIC = "textures/font/fontr_ascii_italic.png";
+    private static final String STYLED_BOLD_ITALIC = "textures/font/fontr_ascii_bold_italic.png";
     private static final int REASSERT_TICKS = 200;
 
     private final Object lock = new Object();
@@ -108,7 +113,7 @@ public final class FontrEngine {
             PolyComposeFontBridge.install(loadedPath);
         }
         if ((tickCounter % REASSERT_TICKS) == 0 && loadedPath != null) {
-            PolyComposeFontBridge.reassert(loadedPath);
+            PolyComposeFontBridge.reassert();
         }
         if (pendingReload) {
             pendingReload = false;
@@ -138,7 +143,8 @@ public final class FontrEngine {
         boolean sizes = GLYPH_SIZES.equals(path) || GLYPH_SIZES_ALT.equals(path);
         String prefix = path.startsWith(UNICODE) ? UNICODE
             : path.startsWith(UNICODE_ALT) ? UNICODE_ALT : null;
-        if (!ascii && !sizes && prefix == null) {
+        FontrFont.Style styled = styleForPath(path);
+        if (!ascii && !sizes && prefix == null && styled == null) {
             return null;
         }
 
@@ -153,8 +159,11 @@ public final class FontrEngine {
                 loggedServe = true;
                 LOGGER.info("[Fontr] Serving generated font resources (" + path + ")");
             }
+            if (styled != null) {
+                return current.hasStyle(styled) ? current.asciiPng(styled) : null;
+            }
             if (ascii) {
-                return current.asciiPng();
+                return current.regularPng();
             }
             if (sizes) {
                 return current.glyphSizes();
@@ -165,6 +174,43 @@ public final class FontrEngine {
             LOGGER.warn("[Fontr] Could not build font resource " + path + ": " + t);
             return null;
         }
+    }
+
+    private static FontrFont.Style styleForPath(String path) {
+        if (STYLED_BOLD.equals(path)) {
+            return FontrFont.Style.BOLD;
+        }
+        if (STYLED_ITALIC.equals(path)) {
+            return FontrFont.Style.ITALIC;
+        }
+        if (STYLED_BOLD_ITALIC.equals(path)) {
+            return FontrFont.Style.BOLD_ITALIC;
+        }
+        return null;
+    }
+
+    /** True when the exact bold/italic face combination was generated. */
+    public boolean styleAvailable(boolean bold, boolean italic) {
+        FontrSheets current = sheets;
+        if (current == null || !FontrSettings.enabled || (!bold && !italic)) {
+            return false;
+        }
+        FontrFont.Style style = bold && italic ? FontrFont.Style.BOLD_ITALIC
+            : bold ? FontrFont.Style.BOLD : FontrFont.Style.ITALIC;
+        return current.hasStyle(style);
+    }
+
+    /** Identifier of the styled ASCII sheet, or null when that style is unavailable. */
+    public Identifier styledSheet(boolean bold, boolean italic) {
+        if (!styleAvailable(bold, italic)) {
+            return null;
+        }
+        String path = bold && italic ? STYLED_BOLD_ITALIC : bold ? STYLED_BOLD : STYLED_ITALIC;
+        return new Identifier("minecraft", path);
+    }
+
+    public boolean argentumStylesEnabled() {
+        return FontrSettings.argentumStyles && FontrSettings.trueStyles;
     }
 
     /** Used by the pack for resource listings. Only emits the fixed sheets. */
@@ -233,20 +279,31 @@ public final class FontrEngine {
             }
 
             try {
-                FontrFont font = FontrFont.load(path, FontrSettings.fontSize,
-                    FontrSettings.fontScale, FontrSettings.antialias, FontrSettings.fontName());
+                Path boldOverride = resolveOptional(FontrSettings.boldFont);
+                Path italicOverride = resolveOptional(FontrSettings.italicFont);
+                Path boldItalicOverride = resolveOptional(FontrSettings.boldItalicFont);
+                FontrFaces faces = FontrFaces.resolve(path, boldOverride, italicOverride,
+                    boldItalicOverride);
+                FontrFont font = FontrFont.load(path, faces.bold, faces.italic, faces.boldItalic,
+                    FontrSettings.fontSize, FontrSettings.fontScale, FontrSettings.antialias,
+                    FontrSettings.fontName());
                 Path cacheDir = FabricLoader.getInstance().getConfigDir()
                     .resolve("Fontr").resolve("cache").resolve(cacheKey(path));
-                FontrSheets created = new FontrSheets(font, FontrSettings.resolution, cacheDir,
+                FontrSheets created = new FontrSheets(font, FontrSettings.resolution,
+                    FontrSettings.styledResolution, FontrSettings.trueStyles, cacheDir,
                     this::openBase, FontrSettings.letterSpacing, FontrSettings.embolden,
                     FontrSettings.debug);
                 sheets = created;
                 loadedPath = path;
                 LOGGER.info("[Fontr] Loaded " + path.getFileName() + " at "
-                    + FontrSettings.resolution + "px sheets");
+                    + FontrSettings.resolution + "px sheets"
+                    + (created.hasStyle(FontrFont.Style.BOLD) ? " (bold face)" : "")
+                    + (created.hasStyle(FontrFont.Style.ITALIC) ? " (italic face)" : "")
+                    + (created.hasStyle(FontrFont.Style.BOLD_ITALIC) ? " (bold-italic face)" : ""));
                 if (FontrSettings.applyToPolyCompose) {
-                    PolyComposeFontBridge.install(path);
+                    PolyComposeFontBridge.install(path, faces.bold, faces.italic, faces.boldItalic);
                 }
+                invalidateArgentumStyles();
             } catch (Throwable t) {
                 LOGGER.warn("[Fontr] Could not load font " + path + ": " + t);
             }
@@ -322,6 +379,28 @@ public final class FontrEngine {
     // ------------------------------------------------------------------
     // Paths and cache
     // ------------------------------------------------------------------
+
+    private static Path resolveOptional(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            Path path = resolveFontPath(value.trim());
+            return Files.isRegularFile(path) ? path : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private void invalidateArgentumStyles() {
+        if (!FabricLoader.getInstance().isModLoaded("argentum")) {
+            return;
+        }
+        try {
+            dev.faris0x.fontr.compat.ArgentumStyles.invalidate();
+        } catch (Throwable ignored) {
+        }
+    }
 
     private static Path resolveFontPath(String value) {
         Path path = Paths.get(value);
