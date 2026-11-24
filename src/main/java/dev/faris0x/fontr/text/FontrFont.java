@@ -77,6 +77,12 @@ public final class FontrFont {
         Font bold = face(boldPath, regular, base);
         Font italic = face(italicPath, regular, base);
         Font boldItalic = face(boldItalicPath, regular, base);
+        // No face files found: bake AWT's synthetic face so style sheets still
+        // exist (real faces are used when available).
+        Font derivedBold = bold != null ? bold : base.deriveFont(Font.BOLD);
+        Font derivedItalic = italic != null ? italic : base.deriveFont(Font.ITALIC);
+        Font derivedBoldItalic = boldItalic != null ? boldItalic
+            : base.deriveFont(Font.BOLD | Font.ITALIC);
         Font fallback = null;
         if (fallbackName != null) {
             try {
@@ -87,7 +93,8 @@ public final class FontrFont {
             } catch (Throwable ignored) {
             }
         }
-        return new FontrFont(base, bold, italic, boldItalic, fallback, frc, antialias, baseline);
+        return new FontrFont(base, derivedBold, derivedItalic, derivedBoldItalic, fallback,
+            frc, antialias, baseline);
     }
 
     private static Font read(Path path) throws Exception {
