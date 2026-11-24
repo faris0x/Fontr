@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import dev.faris0x.fontr.FontrEngine;
 import dev.faris0x.fontr.compat.ArabicText;
+import org.polyfrost.compose.render.RenderContext;
 import org.polyfrost.evergreenhud.client.hud.media.GlyphMark;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -51,13 +52,14 @@ public abstract class LyricsKaraokeMixin {
         at = @At(value = "INVOKE",
             target = "Lorg/polyfrost/compose/render/RenderContext;clipRect(FFFF)V"),
         remap = false, require = 0)
-    private static void fontr$mirrorWipe(float x, float y, float width, float height,
-        Operation<Void> original, @Local(argsOnly = true) GlyphMark mark) {
+    private static void fontr$mirrorWipe(RenderContext context, float x, float y,
+        float width, float height, Operation<Void> original,
+        @Local(argsOnly = true) GlyphMark mark) {
         if (mark != null && ArabicText.containsArabicVisual(mark.getText())) {
             float wordWidth = mark.getWidth();
-            original.call(-wordWidth - (x + width), y, width, height);
+            original.call(context, -wordWidth - (x + width), y, width, height);
         } else {
-            original.call(x, y, width, height);
+            original.call(context, x, y, width, height);
         }
     }
 }
