@@ -25,7 +25,7 @@ import java.util.Map;
 public final class HudFontSelector {
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
     private static final String FONT_ENUM = "org.polyfrost.oneconfig.api.hud.v1.Font";
-    private static String label = "Fontr";
+    private static final String LABEL = "Fontr";
     private static boolean installed;
 
     private HudFontSelector() {
@@ -35,6 +35,7 @@ public final class HudFontSelector {
         if (installed) {
             return;
         }
+        FontEnumInjector.install();
         try {
             ConfigManager.addTreeRegistrationListener(HudFontSelector::apply);
             for (Tree tree : ConfigManager.core().trees()) {
@@ -48,12 +49,8 @@ public final class HudFontSelector {
         }
     }
 
-    /** Call after the font file changes so the selector label follows it. */
+    /** Call after the font file changes so the selector is rebuilt. */
     public static void refreshLabel() {
-        String next = FontrEngine.INSTANCE.fontDisplayName();
-        if (next != null && !next.isBlank() && !next.equals(label)) {
-            label = next;
-        }
         if (!installed) {
             return;
         }
@@ -95,8 +92,8 @@ public final class HudFontSelector {
         for (String option : options) {
             if ("Minecraft".equals(option)) {
                 labels.put(option, "Default");
-            } else if ("Poppins".equals(option)) {
-                labels.put(option, label);
+            } else if ("Fontr".equals(option)) {
+                labels.put(option, LABEL);
             } else {
                 labels.put(option, option);
             }
@@ -109,6 +106,15 @@ public final class HudFontSelector {
 
     private static List<String> optionsOf(Property<?> property) {
         List<String> options = new ArrayList<String>();
+        if (property.type != null && property.type.isEnum()) {
+            Object[] constants = property.type.getEnumConstants();
+            if (constants != null) {
+                for (Object constant : constants) {
+                    options.add(String.valueOf(constant));
+                }
+                return options;
+            }
+        }
         Object metadata = property.getMetadata(MetaKeys.OPTIONS.getName());
         if (metadata instanceof String[]) {
             for (String value : (String[]) metadata) {
@@ -119,11 +125,6 @@ public final class HudFontSelector {
                 if (value != null) {
                     options.add(String.valueOf(value));
                 }
-            }
-        }
-        if (options.isEmpty() && property.type.isEnum()) {
-            for (Object constant : property.type.getEnumConstants()) {
-                options.add(String.valueOf(constant));
             }
         }
         return options;

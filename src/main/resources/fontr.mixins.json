@@ -4,7 +4,9 @@
 	"package": "dev.faris0x.fontr.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
-		"TextRendererMixin"
+		"TextRendererMixin",
+		"TextHudFontMixin",
+		"HudTextFontMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

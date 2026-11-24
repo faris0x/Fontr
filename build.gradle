@@ -28,6 +28,7 @@ dependencies {
 	// Provided by OneConfig/OneClient at runtime. Do not bundle these.
 	compileOnly("org.polyfrost.oneconfig:config:${project.oneconfig_version}") { transitive = false }
 	compileOnly("org.polyfrost.oneconfig:config-impl:${project.oneconfig_version}") { transitive = false }
+	compileOnly("org.polyfrost.oneconfig:hud:${project.oneconfig_version}") { transitive = false }
 }
 
 ploceus {
