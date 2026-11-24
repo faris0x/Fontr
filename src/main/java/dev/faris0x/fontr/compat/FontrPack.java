@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 package dev.faris0x.fontr.compat;
 
 import com.google.gson.JsonObject;

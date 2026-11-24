@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 package dev.faris0x.fontr.text;
 
 import dev.faris0x.fontr.text.FontrFont.Style;

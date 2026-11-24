@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 package dev.rdh.argentum.impl.render.gui;
 
 import dev.rdh.argentum.impl.render.gui.font.Glyph;
