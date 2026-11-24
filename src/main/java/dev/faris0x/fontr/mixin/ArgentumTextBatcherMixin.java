@@ -30,6 +30,11 @@ public abstract class ArgentumTextBatcherMixin {
 
     @Inject(method = "readWidths", at = @At("RETURN"), remap = false, require = 0)
     private void fontr$readWidths(Identifier location, int[] characterWidths, CallbackInfo ci) {
+        // Only the main font sheet uses Fontr's one-pixel gap; leave
+        // ascii_sga (enchanting table) and any other sheets untouched.
+        if (location == null || !location.toString().endsWith("font/ascii.png")) {
+            return;
+        }
         FontrEngine.INSTANCE.adjustArgentumWidths(this.widths, characterWidths);
         ArgentumStyles.setWidths(this.widths);
     }
