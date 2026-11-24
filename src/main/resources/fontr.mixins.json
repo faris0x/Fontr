@@ -12,6 +12,7 @@
 		"HudTextArabicMixin",
 		"EvergreenLabelMixin",
 		"ComposeTextShapeMixin",
+		"ComposeBidiMixin",
 		"FullWidthGlyphMixin",
 		"ArgentumGlyphWidthMixin"
 	],

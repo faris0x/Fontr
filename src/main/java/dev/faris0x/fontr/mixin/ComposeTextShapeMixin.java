@@ -14,10 +14,10 @@ public abstract class ComposeTextShapeMixin {
     @ModifyVariable(method = "createParagraphIntrinsics", at = @At("HEAD"), argsOnly = true,
         remap = false, require = 0)
     private String fontr$shape(String text) {
-        String result = ArabicText.forCompose(text);
+        String result = ArabicText.forHud(text);
         if (!fontr$logged && result != null && !result.equals(text)) {
             fontr$logged = true;
-            FontrEngine.INSTANCE.log("HUD Compose Arabic shaping active");
+            FontrEngine.INSTANCE.log("HUD Compose Arabic transform active");
         }
         return result;
     }

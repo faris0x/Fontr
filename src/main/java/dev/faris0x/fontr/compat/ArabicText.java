@@ -145,6 +145,21 @@ public final class ArabicText {
         }
     }
 
+    public static boolean containsRtl(String text) {
+        if (text == null) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if ((c >= '\u0590' && c <= '\u08FF')
+                || (c >= '\uFB1D' && c <= '\uFDFF')
+                || (c >= '\uFE70' && c <= '\uFEFF')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean containsArabic(String text) {
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
