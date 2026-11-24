@@ -13,7 +13,11 @@ import net.fabricmc.api.ClientModInitializer;
 public final class Fontr implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        FontrConfig.INSTANCE.register();
-        FontrEngine.INSTANCE.log("Fontr loaded");
+        try {
+            FontrConfig.INSTANCE.register();
+            FontrEngine.INSTANCE.log("Fontr loaded");
+        } catch (Throwable t) {
+            System.out.println("[Fontr] OneConfig registration failed: " + t);
+        }
     }
 }
