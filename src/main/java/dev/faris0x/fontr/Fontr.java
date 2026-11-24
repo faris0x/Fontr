@@ -25,6 +25,7 @@ public final class Fontr implements ClientModInitializer {
         }
 
         try {
+            dev.faris0x.fontr.compat.FontrPacks.init();
             FontrEngine.INSTANCE.init();
             LOGGER.info("[Fontr] Loaded");
         } catch (Throwable t) {

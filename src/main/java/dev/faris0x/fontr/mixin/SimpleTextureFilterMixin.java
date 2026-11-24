@@ -1,5 +1,7 @@
 package dev.faris0x.fontr.mixin;
 
+import dev.faris0x.fontr.FontrEngine;
+import dev.faris0x.fontr.FontrSettings;
 import net.minecraft.client.render.platform.GlStateManager;
 import net.minecraft.client.render.texture.AbstractTexture;
 import net.minecraft.client.render.texture.SimpleTexture;
@@ -24,6 +26,8 @@ public abstract class SimpleTextureFilterMixin {
     @Shadow
     protected Identifier location;
 
+    private static boolean fontr$logged;
+
     @Inject(method = "load", at = @At("RETURN"), require = 0)
     private void fontr$filter(CallbackInfo ci) {
         if (location == null || !location.toString().contains("/font/")) {
@@ -39,15 +43,20 @@ public abstract class SimpleTextureFilterMixin {
             return;
         }
 
-        boolean mipmaps = GLContext.getCapabilities().OpenGL30;
+        boolean mipmaps = FontrSettings.mipmaps && GLContext.getCapabilities().OpenGL30;
         GlStateManager.bindTexture(id);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER,
             mipmaps ? GL11.GL_LINEAR_MIPMAP_LINEAR : GL11.GL_LINEAR);
         if (mipmaps) {
-            GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 4);
+            GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
+        }
+        if (!fontr$logged) {
+            fontr$logged = true;
+            FontrEngine.INSTANCE.log("Applied LINEAR" + (mipmaps ? "+mipmaps" : "")
+                + " filtering to " + location);
         }
     }
 }

@@ -36,6 +36,8 @@ public final class FontrSheets {
     private final int resolution;
     private final Path cacheDir;
     private final BaseProvider base;
+    private final float letterSpacing;
+    private final float embolden;
     private final boolean debug;
 
     private byte[] asciiPng;
@@ -43,11 +45,13 @@ public final class FontrSheets {
     private final java.util.Map<Integer, byte[]> unicodePng = new java.util.HashMap<Integer, byte[]>();
 
     public FontrSheets(FontrFont font, int resolution, Path cacheDir, BaseProvider base,
-                       boolean debug) {
+                       float letterSpacing, float embolden, boolean debug) {
         this.font = font;
         this.resolution = resolution;
         this.cacheDir = cacheDir;
         this.base = base;
+        this.letterSpacing = letterSpacing;
+        this.embolden = embolden;
         this.debug = debug;
         try {
             Files.createDirectories(cacheDir);
@@ -92,7 +96,7 @@ public final class FontrSheets {
             if (!renderable(codepoint) || !font.canDisplay(codepoint)) {
                 continue;
             }
-            int advance = codepoint == 0x20 ? 4 : Math.min(8, font.advance(codepoint) + 1);
+            int advance = codepoint == 0x20 ? 4 : advance(codepoint);
             int end = Math.min(15, Math.max(0, advance * 2 - 1));
             result[codepoint] = (byte) end;
         }
@@ -148,12 +152,10 @@ public final class FontrSheets {
                 continue;
             }
 
-            // Vanilla draws each glyph charWidth-1 pixels wide. Use one extra pixel
-            // for the advance so glyphs keep their natural width and get a 1px gap.
-            int advance = Math.min(8, font.advance(codepoint) + 1);
+            int advance = advance(codepoint);
             graphics.setClip(x, y, cell, cell);
             font.drawGlyph(graphics, codepoint, scale, x, y + (float) FontrFont.BASELINE * scale,
-                (float) (advance - 1) * scale);
+                (float) (advance - 1) * scale, embolden);
             graphics.setClip(null);
 
             // readFontTexture() derives advances from the rightmost non-transparent
@@ -188,15 +190,20 @@ public final class FontrSheets {
             }
             int x = (offset & 15) * UNICODE_CELL;
             int y = (offset >> 4) * UNICODE_CELL;
-            int advance = Math.min(8, font.advance(codepoint) + 1);
+            int advance = advance(codepoint);
             graphics.setClip(x, y, UNICODE_CELL, UNICODE_CELL);
             font.drawGlyph(graphics, codepoint, UNICODE_SCALE, x,
                 y + (float) FontrFont.BASELINE * UNICODE_SCALE,
-                (float) (advance - 1) * UNICODE_SCALE);
+                (float) (advance - 1) * UNICODE_SCALE, embolden);
             graphics.setClip(null);
         }
         graphics.dispose();
         return page;
+    }
+
+    /** Advance in the 8px line, including the user's letter spacing. */
+    private int advance(int codepoint) {
+        return Math.max(2, Math.min(8, Math.round(font.advance(codepoint) + letterSpacing)));
     }
 
     private void copyCell(Graphics2D graphics, BufferedImage baseImage, int codepoint,

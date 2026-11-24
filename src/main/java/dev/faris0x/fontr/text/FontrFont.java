@@ -142,7 +142,7 @@ public final class FontrFont {
      * @param maxAdvance maximum ink width in sheet pixels
      */
     public void drawGlyph(Graphics2D graphics, int codepoint, float scale, float x, float y,
-                          float maxAdvance) {
+                          float maxAdvance, float embolden) {
         Font chosen = fontFor(codepoint);
         Font font = chosen.deriveFont(Font.PLAIN, chosen.getSize2D() * scale);
         graphics.setFont(font);
@@ -177,6 +177,13 @@ public final class FontrFont {
             graphics.scale(scaleX, 1.0F);
         }
         graphics.drawGlyphVector(vector, 0.0F, 0.0F);
+        if (embolden > 0.0F) {
+            java.awt.Stroke previous = graphics.getStroke();
+            graphics.setStroke(new java.awt.BasicStroke(Math.max(0.2F, embolden * scale),
+                java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+            graphics.draw(vector.getOutline(0.0F, 0.0F));
+            graphics.setStroke(previous);
+        }
         graphics.setTransform(old);
         if (clip != null) {
             graphics.setClip(clip);

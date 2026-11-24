@@ -55,6 +55,26 @@ public final class FontrConfig extends Config {
     )
     public static float fontScale = 0.95F;
 
+    @Slider(
+        title = "Letter spacing",
+        description = "Extra pixels between glyphs. Negative values tighten text; 0 uses the font's natural advance.",
+        min = -2.0F,
+        max = 2.0F,
+        step = 0.25F,
+        category = CATEGORY_FONT
+    )
+    public static float letterSpacing = 0.0F;
+
+    @Slider(
+        title = "Embolden",
+        description = "Strokes glyph outlines to thicken thin fonts at 8px. 0 disables.",
+        min = 0.0F,
+        max = 0.5F,
+        step = 0.05F,
+        category = CATEGORY_FONT
+    )
+    public static float embolden = 0.0F;
+
     @Switch(
         title = "Antialiasing",
         description = "Smooth glyph edges in the generated sheet. Turn off for pixel fonts.",
@@ -69,6 +89,20 @@ public final class FontrConfig extends Config {
         category = CATEGORY_FONT
     )
     public static String fallback = "System SansSerif";
+
+    @Switch(
+        title = "Mipmaps",
+        description = "Generate a mip chain for font textures. Smoother while scrolling; turn off to compare sharpness.",
+        category = CATEGORY_FONT
+    )
+    public static boolean mipmaps = true;
+
+    @Switch(
+        title = "Arabic shaping + RTL",
+        description = "Joins Arabic letters and reorders right-to-left runs before Minecraft draws them.",
+        category = CATEGORY_COMPAT
+    )
+    public static boolean arabicShaping = true;
 
     @Switch(
         title = "Apply to OneConfig UI",
@@ -100,7 +134,11 @@ public final class FontrConfig extends Config {
         FontrSettings.resolution = resolution != null && resolution.startsWith("8192") ? 8192 : 4096;
         FontrSettings.fontSize = 8;
         FontrSettings.fontScale = fontScale;
+        FontrSettings.letterSpacing = letterSpacing;
+        FontrSettings.embolden = embolden;
         FontrSettings.antialias = antialias;
+        FontrSettings.mipmaps = mipmaps;
+        FontrSettings.arabicShaping = arabicShaping;
         FontrSettings.fallback = fallback;
         FontrSettings.applyToPolyCompose = applyToPolyCompose;
         FontrSettings.debug = debug;

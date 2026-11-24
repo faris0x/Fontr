@@ -1,14 +1,18 @@
 package dev.faris0x.fontr;
 
-import dev.faris0x.fontr.compat.FontrResource;
+import dev.faris0x.fontr.compat.FontrPack;
 import dev.faris0x.fontr.compat.PolyComposeFontBridge;
 import dev.faris0x.fontr.text.FontrFont;
 import dev.faris0x.fontr.text.FontrSheets;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.resource.Resource;
-import net.minecraft.client.resource.manager.ResourceManager;
-import net.minecraft.resource.Identifier;
+import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
+import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
+import net.ornithemc.osl.core.api.util.function.IOSupplier;
+import net.ornithemc.osl.resource.loader.api.resource.ResourceType;
+import net.ornithemc.osl.resource.loader.api.resource.pack.ResourcePack;
+import net.ornithemc.osl.resource.loader.api.resource.repository.ResourcePackRepository;
+import net.ornithemc.osl.resource.loader.api.resource.repository.ResourcePackSummary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,42 +22,44 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 /**
  * Runtime facade for the resource-level font override.
  *
- * <p>Fontr does not hook any text renderer. It replaces the resources every
- * 1.8.9 renderer already reads ({@code font/ascii.png},
- * {@code font/unicode_page_XX.png} and {@code font/glyph_sizes.bin}) with sheets
- * rasterised from the selected TTF. Vanilla, Argentum's batcher, Cera and
- * PolyCompose therefore all consume the same glyphs.</p>
+ * <p>Fontr replaces the resources every 1.8.9 renderer already reads
+ * ({@code textures/font/ascii.png}, {@code textures/font/unicode_page_XX.png}
+ * and {@code font/glyph_sizes.bin}) with sheets rasterised from the selected
+ * TTF. Delivery happens through an OSL resource pack, so Minecraft, Argentum's
+ * batcher, PolyCompose's MC font and Cera all consume the same glyphs.</p>
  */
 public final class FontrEngine {
     public static final FontrEngine INSTANCE = new FontrEngine();
 
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
-    private static final String FONT_ROOT = "minecraft:textures/font/";
-    private static final String GLYPH_SIZES = "minecraft:font/glyph_sizes.bin";
-    private static final String ASCII = "minecraft:textures/font/ascii.png";
-    private static final String UNICODE = "minecraft:textures/font/unicode_page_";
-    private static final String UNICODE_ALT = "minecraft:font/unicode_page_";
-
-    private static final ThreadLocal<Boolean> INTERNAL_READ =
-        ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final String ASCII = "textures/font/ascii.png";
+    private static final String ASCII_ALT = "font/ascii.png";
+    private static final String GLYPH_SIZES = "font/glyph_sizes.bin";
+    private static final String GLYPH_SIZES_ALT = "textures/font/glyph_sizes.bin";
+    private static final String UNICODE = "textures/font/unicode_page_";
+    private static final String UNICODE_ALT = "font/unicode_page_";
+    private static final int REASSERT_TICKS = 200;
 
     private final Object lock = new Object();
 
     private volatile String loadedKey = "";
     private volatile FontrSheets sheets;
-    private volatile java.nio.file.Path loadedPath;
+    private volatile Path loadedPath;
+    private volatile List<ResourcePack> basePacks;
     private volatile Runnable settingsPoller;
-    private volatile ResourceManager lastManager;
     private volatile boolean pendingReload;
     private volatile boolean served;
+    private volatile boolean loggedServe;
     private volatile int tickCounter;
-    private volatile boolean loggedResourceHit;
 
     private FontrEngine() {
     }
@@ -88,6 +94,7 @@ public final class FontrEngine {
                 LOGGER.warn("[Fontr] Settings poller failed: " + t);
             }
         }
+
         String key = FontrSettings.sheetKey();
         if (!key.equals(loadedKey) || (sheets == null && FontrSettings.enabled)) {
             reloadIfNeeded();
@@ -99,6 +106,9 @@ public final class FontrEngine {
         if (FontrSettings.applyToPolyCompose && !PolyComposeFontBridge.isInstalled()
             && loadedPath != null) {
             PolyComposeFontBridge.install(loadedPath);
+        }
+        if ((tickCounter % REASSERT_TICKS) == 0 && loadedPath != null) {
+            PolyComposeFontBridge.reassert(loadedPath);
         }
         if (pendingReload) {
             pendingReload = false;
@@ -114,21 +124,24 @@ public final class FontrEngine {
         }
     }
 
-    /**
-     * Called from the resource-manager mixins.
-     *
-     * @return the replacement resource, or null to let the vanilla one load
-     */
-    public Resource resourceFor(Identifier location, ResourceManager manager) {
-        if (!FontrSettings.enabled || Boolean.TRUE.equals(INTERNAL_READ.get())) {
+    // ------------------------------------------------------------------
+    // Resource pack feed
+    // ------------------------------------------------------------------
+
+    /** Returns the generated bytes for a Minecraft asset, or null. */
+    public byte[] resourceBytes(NamespacedIdentifier id) {
+        if (!FontrSettings.enabled || !"minecraft".equals(id.namespace())) {
             return null;
         }
-        String name = location.toString();
-        if (!(name.equals(ASCII) || name.equals(GLYPH_SIZES)
-            || name.startsWith(UNICODE) || name.startsWith(UNICODE_ALT))) {
+        String path = id.identifier();
+        boolean ascii = ASCII.equals(path) || ASCII_ALT.equals(path);
+        boolean sizes = GLYPH_SIZES.equals(path) || GLYPH_SIZES_ALT.equals(path);
+        String prefix = path.startsWith(UNICODE) ? UNICODE
+            : path.startsWith(UNICODE_ALT) ? UNICODE_ALT : null;
+        if (!ascii && !sizes && prefix == null) {
             return null;
         }
-        lastManager = manager;
+
         reloadIfNeeded();
         FontrSheets current = sheets;
         if (current == null) {
@@ -136,26 +149,43 @@ public final class FontrEngine {
         }
         try {
             served = true;
-            if (!loggedResourceHit && FontrSettings.debug) {
-                loggedResourceHit = true;
-                LOGGER.info("[Fontr] Serving generated font resources (" + name + ")");
+            if (!loggedServe && FontrSettings.debug) {
+                loggedServe = true;
+                LOGGER.info("[Fontr] Serving generated font resources (" + path + ")");
             }
-            if (name.equals(ASCII)) {
-                return FontrResource.of(location, current.asciiPng());
+            if (ascii) {
+                return current.asciiPng();
             }
-            if (name.equals(GLYPH_SIZES)) {
-                return FontrResource.of(location, current.glyphSizes());
+            if (sizes) {
+                return current.glyphSizes();
             }
-            int block = parseBlock(name.startsWith(UNICODE_ALT) ? name.substring(UNICODE_ALT.length())
-                : name.substring(UNICODE.length()));
-            if (block < 0) {
-                return null;
-            }
-            byte[] png = current.unicodePng(block);
-            return png == null ? null : FontrResource.of(location, png);
+            int block = parseBlock(path.substring(prefix.length()));
+            return block < 0 ? null : current.unicodePng(block);
         } catch (Throwable t) {
-            LOGGER.warn("[Fontr] Could not build font resource " + name + ": " + t);
+            LOGGER.warn("[Fontr] Could not build font resource " + path + ": " + t);
             return null;
+        }
+    }
+
+    /** Used by the pack for resource listings. Only emits the fixed sheets. */
+    public void findResources(String namespace, String path,
+                              BiConsumer<NamespacedIdentifier, byte[]> consumer) {
+        if (!"minecraft".equals(namespace) || !FontrSettings.enabled) {
+            return;
+        }
+        String prefix = path == null ? "" : path;
+        if (ASCII.startsWith(prefix) && !prefix.isEmpty()) {
+            emit(ASCII, consumer);
+        }
+        if (GLYPH_SIZES.startsWith(prefix) && !prefix.isEmpty()) {
+            emit(GLYPH_SIZES, consumer);
+        }
+    }
+
+    private void emit(String path, BiConsumer<NamespacedIdentifier, byte[]> consumer) {
+        byte[] bytes = resourceBytes(NamespacedIdentifiers.from("minecraft", path));
+        if (bytes != null) {
+            consumer.accept(NamespacedIdentifiers.from("minecraft", path), bytes);
         }
     }
 
@@ -170,6 +200,10 @@ public final class FontrEngine {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Loading
+    // ------------------------------------------------------------------
+
     private void reloadIfNeeded() {
         String key = FontrSettings.sheetKey();
         synchronized (lock) {
@@ -180,6 +214,7 @@ public final class FontrEngine {
             pendingReload = false;
             sheets = null;
             loadedPath = null;
+            closeBasePacks();
             if (!FontrSettings.enabled) {
                 LOGGER.info("[Fontr] Disabled");
                 return;
@@ -203,7 +238,8 @@ public final class FontrEngine {
                 Path cacheDir = FabricLoader.getInstance().getConfigDir()
                     .resolve("Fontr").resolve("cache").resolve(cacheKey(path));
                 FontrSheets created = new FontrSheets(font, FontrSettings.resolution, cacheDir,
-                    this::openBase, FontrSettings.debug);
+                    this::openBase, FontrSettings.letterSpacing, FontrSettings.embolden,
+                    FontrSettings.debug);
                 sheets = created;
                 loadedPath = path;
                 LOGGER.info("[Fontr] Loaded " + path.getFileName() + " at "
@@ -217,22 +253,75 @@ public final class FontrEngine {
         }
     }
 
-    /** Reads from the resource packs underneath Fontr (never our own sheet). */
+    // ------------------------------------------------------------------
+    // Base pack access (for glyphs the selected font lacks)
+    // ------------------------------------------------------------------
+
     private InputStream openBase(String path) {
-        ResourceManager manager = lastManager;
-        if (manager == null) {
-            return null;
+        NamespacedIdentifier id = NamespacedIdentifiers.from("minecraft", path);
+        for (ResourcePack pack : basePacks()) {
+            try {
+                if (!pack.hasResource(ResourceType.CLIENT_ASSETS, id)) {
+                    continue;
+                }
+                IOSupplier<InputStream> supplier = pack.getResource(ResourceType.CLIENT_ASSETS, id);
+                if (supplier != null) {
+                    return supplier.get();
+                }
+            } catch (Throwable ignored) {
+            }
         }
-        try {
-            INTERNAL_READ.set(Boolean.TRUE);
-            Resource resource = manager.getResource(new Identifier("minecraft", path));
-            return resource == null ? null : resource.asStream();
-        } catch (Throwable t) {
-            return null;
-        } finally {
-            INTERNAL_READ.set(Boolean.FALSE);
+        return null;
+    }
+
+    private List<ResourcePack> basePacks() {
+        List<ResourcePack> current = basePacks;
+        if (current != null) {
+            return current;
+        }
+        synchronized (lock) {
+            if (basePacks != null) {
+                return basePacks;
+            }
+            List<ResourcePack> opened = new ArrayList<ResourcePack>();
+            try {
+                ResourcePackRepository repository = ResourcePackRepository.client();
+                if (repository != null) {
+                    for (ResourcePackSummary summary : repository.getSelectedPacks()) {
+                        if (FontrPack.ID.equals(summary.getId())) {
+                            continue;
+                        }
+                        try {
+                            opened.add(summary.open());
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                log("Could not open base resource packs: " + t);
+            }
+            basePacks = opened;
+            return opened;
         }
     }
+
+    private void closeBasePacks() {
+        List<ResourcePack> current = basePacks;
+        basePacks = null;
+        if (current == null) {
+            return;
+        }
+        for (ResourcePack pack : current) {
+            try {
+                pack.close();
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Paths and cache
+    // ------------------------------------------------------------------
 
     private static Path resolveFontPath(String value) {
         Path path = Paths.get(value);
@@ -258,14 +347,14 @@ public final class FontrEngine {
                 builder.append(String.format(Locale.ROOT, "%02x", hash[i]));
             }
             String key = builder.toString();
-            pruneCache(font, key);
+            pruneCache(key);
             return key;
         } catch (Throwable t) {
             return "default";
         }
     }
 
-    private void pruneCache(Path font, String keep) {
+    private void pruneCache(String keep) {
         try {
             Path root = FabricLoader.getInstance().getConfigDir().resolve("Fontr").resolve("cache");
             if (!Files.isDirectory(root)) {

@@ -13,7 +13,11 @@ public final class FontrSettings {
     public static volatile int resolution = 4096;
     public static volatile int fontSize = 8;
     public static volatile float fontScale = 0.95F;
+    public static volatile float letterSpacing = 0.0F;
+    public static volatile float embolden = 0.0F;
     public static volatile boolean antialias = true;
+    public static volatile boolean mipmaps = true;
+    public static volatile boolean arabicShaping = true;
     public static volatile String fallback = "System SansSerif";
     public static volatile boolean applyToPolyCompose = true;
     public static volatile boolean debug = false;
@@ -24,7 +28,7 @@ public final class FontrSettings {
     /** Everything that changes the generated sheets. */
     public static String sheetKey() {
         return fontPath + '|' + resolution + '|' + fontSize + '|' + fontScale + '|'
-            + antialias + '|' + fallback;
+            + letterSpacing + '|' + embolden + '|' + antialias + '|' + fallback;
     }
 
     public static String fontName() {
