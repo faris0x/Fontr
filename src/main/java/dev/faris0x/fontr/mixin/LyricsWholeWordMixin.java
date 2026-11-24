@@ -1,42 +1,52 @@
 package dev.faris0x.fontr.mixin;
 
-import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import dev.faris0x.fontr.FontrEngine;
 import dev.faris0x.fontr.compat.ArabicText;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
 /**
  * EvergreenHUD splits long words into one mark per character, in logical
- * order, which draws Arabic letters left-to-right. Report a neutral length for
- * Arabic words so the whole word is kept as a single mark and shaped normally.
+ * order, which draws Arabic letters left-to-right. Force the single-mark path
+ * for Arabic words so the whole word is shaped and reordered normally.
+ *
+ * <p>Locals are matched by slot (the class carries a local variable table):
+ * slot 57 is the trimmed word, slot 58 is the internal {@code held} flag that
+ * selects the per-character path.</p>
  */
 @Mixin(targets = "org.polyfrost.evergreenhud.client.hud.media.LyricsHudKt", remap = false)
 public abstract class LyricsWholeWordMixin {
     private static String fontr$word;
-    private static boolean fontr$logged;
+    private static boolean fontr$wordLogged;
+    private static boolean fontr$heldLogged;
+    private static boolean fontr$wholeLogged;
 
-    @ModifyExpressionValue(method = "buildFrame",
-        at = @At(value = "INVOKE",
-            target = "Lkotlin/text/StringsKt;trimEnd(Ljava/lang/CharSequence;)Ljava/lang/CharSequence;"),
+    @ModifyVariable(method = "buildFrame", at = @At("STORE"), index = 57,
         remap = false, require = 0)
-    private static CharSequence fontr$record(CharSequence value) {
-        fontr$word = value == null ? null : value.toString();
+    private String fontr$record(String value) {
+        fontr$word = value;
+        if (!fontr$wordLogged) {
+            fontr$wordLogged = true;
+            FontrEngine.INSTANCE.log("HUD lyric word local hooked");
+        }
         return value;
     }
 
-    @ModifyExpressionValue(method = "buildFrame",
-        at = @At(value = "INVOKE", target = "Ljava/lang/String;length()I", ordinal = 0),
+    @ModifyVariable(method = "buildFrame", at = @At("STORE"), index = 58,
         remap = false, require = 0)
-    private static int fontr$wholeWord(int length) {
-        if (ArabicText.containsArabicVisual(fontr$word)) {
-            if (!fontr$logged) {
-                fontr$logged = true;
+    private boolean fontr$wholeWord(boolean held) {
+        if (!fontr$heldLogged) {
+            fontr$heldLogged = true;
+            FontrEngine.INSTANCE.log("HUD lyric split flag hooked");
+        }
+        if (held && ArabicText.containsArabicVisual(fontr$word)) {
+            if (!fontr$wholeLogged) {
+                fontr$wholeLogged = true;
                 FontrEngine.INSTANCE.log("HUD lyrics Arabic words kept whole");
             }
-            // 3..12 keeps EvergreenHUD on the single-mark path.
-            return 5;
+            return false;
         }
-        return length;
+        return held;
     }
 }
