@@ -27,11 +27,16 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 public abstract class LyricsKaraokeMixin {
     private static String fontr$word;
     private static boolean fontr$logged;
+    private static boolean fontr$hooked;
 
     @ModifyVariable(method = "buildFrame", at = @At("STORE"), name = "trimmed",
         remap = false, require = 0)
     private String fontr$remember(String value) {
         fontr$word = value;
+        if (!fontr$hooked) {
+            fontr$hooked = true;
+            FontrEngine.INSTANCE.log("HUD lyric mark hook active");
+        }
         return value;
     }
 
@@ -56,8 +61,9 @@ public abstract class LyricsKaraokeMixin {
         float width, float height, Operation<Void> original,
         @Local(argsOnly = true) GlyphMark mark) {
         if (mark != null && ArabicText.containsArabicVisual(mark.getText())) {
-            float wordWidth = mark.getWidth();
-            original.call(context, -wordWidth - (x + width), y, width, height);
+            // Mirror the clip about the word centre (local x = 0): the sung
+            // region then grows from the right edge towards the left.
+            original.call(context, -(x + width), y, width, height);
         } else {
             original.call(context, x, y, width, height);
         }
