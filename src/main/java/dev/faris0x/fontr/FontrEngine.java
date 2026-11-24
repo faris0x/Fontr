@@ -61,6 +61,14 @@ public final class FontrEngine {
         }
     }
 
+    /**
+     * Loads the font eagerly so the PolyCompose/Skia registry is populated before
+     * the first OneConfig Compose frame is drawn.
+     */
+    public void warmUp() {
+        reloadIfNeeded();
+    }
+
     public boolean shouldHandle(Identifier fontLocation) {
         if (!FontrConfig.enabled) {
             return false;

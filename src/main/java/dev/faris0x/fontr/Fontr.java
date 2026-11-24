@@ -15,6 +15,7 @@ public final class Fontr implements ClientModInitializer {
     public void onInitializeClient() {
         try {
             FontrConfig.INSTANCE.register();
+            FontrEngine.INSTANCE.warmUp();
             FontrEngine.INSTANCE.log("Fontr loaded");
         } catch (Throwable t) {
             System.out.println("[Fontr] OneConfig registration failed: " + t);
