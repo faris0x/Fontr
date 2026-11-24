@@ -16,6 +16,7 @@
 		"HudPolyTextMixin",
 		"HudMcTextArabicMixin",
 		"HudMcFontMeasureMixin",
+		"LyricsLineLayoutMixin",
 		"FullWidthGlyphMixin",
 		"ArgentumGlyphWidthMixin"
 	],
