@@ -115,31 +115,15 @@ public final class ArabicText {
                 return shaped;
             }
             char[] chars = shaped.toCharArray();
-            if (!Bidi.requiresBidi(chars, 0, chars.length)) {
+            if (!com.ibm.icu.text.Bidi.requiresBidi(chars, 0, chars.length)) {
                 return shaped;
             }
-            Bidi bidi = new Bidi(chars, 0, null, 0, chars.length,
-                Bidi.DIRECTION_DEFAULT_RIGHT_TO_LEFT);
-            int runs = bidi.getRunCount();
-            byte[] levels = new byte[runs];
-            Integer[] order = new Integer[runs];
-            for (int i = 0; i < runs; i++) {
-                levels[i] = (byte) bidi.getRunLevel(i);
-                order[i] = i;
-            }
-            Bidi.reorderVisually(levels, 0, order, 0, runs);
-
-            StringBuilder visual = new StringBuilder(shaped.length());
-            for (int run : order) {
-                int start = bidi.getRunStart(run);
-                int limit = bidi.getRunLimit(run);
-                String part = shaped.substring(start, limit);
-                if ((bidi.getRunLevel(run) & 1) != 0) {
-                    part = new StringBuilder(part).reverse().toString();
-                }
-                visual.append(part);
-            }
-            return visual.toString();
+            // ICU's reordering also mirrors paired punctuation (parentheses,
+            // brackets, braces, guillemets) for right-to-left runs, which the
+            // manual run reversal could not do.
+            com.ibm.icu.text.Bidi bidi = new com.ibm.icu.text.Bidi(
+                shaped, com.ibm.icu.text.Bidi.DIRECTION_DEFAULT_RIGHT_TO_LEFT);
+            return bidi.writeReordered(com.ibm.icu.text.Bidi.DO_MIRRORING);
         } catch (Throwable t) {
             return text;
         }
