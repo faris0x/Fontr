@@ -6,6 +6,8 @@ import org.polyfrost.oneconfig.api.hud.v1.Hud;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Renders the injected Fontr enum value through the Poppins path without
@@ -13,7 +15,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(targets = "org.polyfrost.oneconfig.api.hud.v1.TextHud")
 public abstract class TextHudFontMixin {
+    private static boolean fontr$logged;
+
     @Redirect(
+        require = 0,
         method = "Content",
         remap = false,
         at = @At(
@@ -23,6 +28,10 @@ public abstract class TextHudFontMixin {
         )
     )
     private Font fontr$renderFont(Hud hud) {
+        if (!fontr$logged) {
+            fontr$logged = true;
+            LogManager.getLogger("Fontr").info("[Fontr] HUD TextHud Fontr redirect active");
+        }
         return (Font) FontEnumInjector.equivalent(hud.getFont());
     }
 }

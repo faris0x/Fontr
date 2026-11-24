@@ -6,10 +6,15 @@ import org.polyfrost.oneconfig.api.hud.v1.Hud;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Mixin(targets = "org.polyfrost.oneconfig.api.hud.v1.HudTextKt")
 public abstract class HudTextFontMixin {
+    private static boolean fontr$logged;
+
     @Redirect(
+        require = 0,
         method = "HudRunText",
         remap = false,
         at = @At(
@@ -19,6 +24,10 @@ public abstract class HudTextFontMixin {
         )
     )
     private static Font fontr$renderFont(Hud hud) {
+        if (!fontr$logged) {
+            fontr$logged = true;
+            LogManager.getLogger("Fontr").info("[Fontr] HUD HudText Fontr redirect active");
+        }
         return (Font) FontEnumInjector.equivalent(hud.getFont());
     }
 }
