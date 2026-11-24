@@ -11,7 +11,8 @@
 		"ArgentumTextBatcherMixin",
 		"HudTextArabicMixin",
 		"EvergreenLabelMixin",
-		"VanillaHudFontMixin"
+		"FullWidthGlyphMixin",
+		"ArgentumGlyphWidthMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

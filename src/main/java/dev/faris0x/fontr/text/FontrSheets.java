@@ -225,7 +225,7 @@ public final class FontrSheets {
             int advance = advance(codepoint);
             graphics.setClip(x, y, cell, cell);
             font.drawGlyph(graphics, codepoint, scale, x, y + baseline,
-                (float) (advance - 1) * scale, embolden, style, y, y + cell, 0.8F, 1.0F);
+                (float) advance * scale, embolden, style, y, y + cell, 0.8F, 1.0F);
             graphics.setClip(null);
 
             // readFontTexture() derives advances from the rightmost non-transparent
@@ -280,7 +280,7 @@ public final class FontrSheets {
 
     /** Advance in the 8px line, including vanilla's one-pixel gap. */
     private int advance(int codepoint) {
-        return Math.max(2, Math.min(8, Math.round(font.advance(codepoint) + letterSpacing) + 1));
+        return Math.max(2, Math.min(8, Math.round(font.advance(codepoint) + letterSpacing)));
     }
 
     private BlockFit blockFit(int block) {
@@ -301,7 +301,7 @@ public final class FontrSheets {
             for (int offset = 0x20; offset < 0x100; offset++) {
                 int codepoint = start + offset;
                 if (renderable(codepoint) && font.canDisplay(codepoint)) {
-                    fit.advances[offset] = codepoint == 0x20 ? 4 : Math.max(1, advance(codepoint) - 1);
+                    fit.advances[offset] = codepoint == 0x20 ? 4 : Math.max(1, advance(codepoint));
                 }
             }
             return fit;
@@ -368,7 +368,7 @@ public final class FontrSheets {
                 advance = (int) Math.round(vector.getGlyphPosition(vector.getNumGlyphs()).getX() / 2.0F);
             } catch (Throwable ignored) {
             }
-            fit.advances[offset] = Math.max(1, Math.min(8, advance - 1));
+            fit.advances[offset] = Math.max(1, Math.min(8, advance));
         }
         if (debug) {
             log("Unicode block " + String.format("%02x", block) + " size="
@@ -421,7 +421,7 @@ public final class FontrSheets {
             return 2;
         }
         int ink = (int) Math.ceil((right + 1) * 8.0 / cell);
-        return Math.max(2, Math.min(8, ink + 1));
+        return Math.max(1, Math.min(8, ink));
     }
 
     private void copyCell(Graphics2D graphics, BufferedImage baseImage, int index,

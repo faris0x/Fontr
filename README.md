@@ -120,9 +120,9 @@ This repository does not include the font. Do not redistribute it.
 - Argentum integration is best-effort: it targets Argentum's internal batcher at
   runtime and is compiled against signature-only stubs (no Argentum code is
   shipped). If a future Argentum changes the batcher, the feature disables itself.
-- VanillaHud captures vanilla scoreboard/tablist runs with their original x
-  positions and re-draws them. Fontr forces those VanillaHud instances onto the
-  Minecraft text path so the captured positions and glyph advances agree.
+- Advances use the font's natural width. Vanilla's built-in one-pixel subtraction
+  is patched out (and Argentum's equivalent), so glyphs draw at full width and
+  PolyCompose/VanillaHud see the same advances as the captured vanilla positions.
 - PolyCompose's accented/non-Latin European sheets (`accented.png`,
   `nonlatin_european.png`) are not regenerated yet; those characters still come
   from the selected resource pack.

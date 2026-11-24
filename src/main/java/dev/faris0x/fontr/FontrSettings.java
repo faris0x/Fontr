@@ -32,7 +32,7 @@ public final class FontrSettings {
     public static volatile boolean debug = false;
 
     /** Bump when the sheet builder changes so old caches are ignored. */
-    private static final int SHEET_VERSION = 6;
+    private static final int SHEET_VERSION = 7;
 
     private FontrSettings() {
     }
