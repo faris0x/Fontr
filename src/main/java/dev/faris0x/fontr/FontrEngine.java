@@ -69,6 +69,17 @@ public final class FontrEngine {
         reloadIfNeeded();
     }
 
+    public String fontDisplayName() {
+        FontrFont current = font;
+        if (current != null && current.base != null) {
+            String family = current.base.getFamily();
+            if (family != null && !family.isBlank()) {
+                return family;
+            }
+        }
+        return "Fontr";
+    }
+
     public boolean shouldHandle(Identifier fontLocation) {
         if (!FontrConfig.enabled) {
             return false;
@@ -216,6 +227,7 @@ public final class FontrEngine {
             if (FontrConfig.applyToPolyCompose) {
                 PolyComposeFontBridge.install(path, FontrConfig.pixelSnap);
             }
+            dev.faris0x.fontr.compat.HudFontSelector.refreshLabel();
         } catch (Throwable t) {
             font = null;
             log("Could not load font: " + t);

@@ -23,14 +23,18 @@ public final class PolyComposeFontBridge {
     private static final String DEFAULT_KEY = "__default__";
     private static final String FONTR_KEY = "fontr";
 
-    /** Compose families that should resolve to Fontr. */
+    /**
+     * OneConfig exposes its HUD font dropdown as Minecraft/Poppins. Enum values
+     * cannot be added at runtime, so Fontr occupies the Poppins slot: every
+     * Poppins variant resolves to the user's TTF. The dropdown label is changed
+     * separately by {@link HudFontSelector}.
+     */
     private static final String[] FAMILIES = {
-        "sans-serif", "serif", "monospace", "cursive",
-        // Minecraft-styled text used by PolyCompose HUD modules.
-        "polycompose:minecraft", "polycompose:minecraft-bold",
-        // OneConfig/PolyCompose UI families. These are explicitly requested by
-        // many components, so setting only the default is not enough.
-        "inter", "inter-medium", "inter-semibold", "inter-bold"
+        "poppins", "poppins-italic",
+        "poppins-thin", "poppins-thin-italic",
+        "poppins-medium", "poppins-medium-italic",
+        "poppins-semibold", "poppins-bold", "poppins-bold-italic",
+        "poppins-black", "poppins-black-italic"
     };
 
     private static volatile boolean installed;
@@ -71,13 +75,7 @@ public final class PolyComposeFontBridge {
             for (String family : FAMILIES) {
                 register.invoke(instance, family, bytes, pixelAligned);
             }
-            Method registerWeight = manager.getMethod("registerWeight", String.class, int.class, String.class);
-            registerWeight.invoke(instance, "inter", 400, "inter");
-            registerWeight.invoke(instance, "inter", 500, "inter-medium");
-            registerWeight.invoke(instance, "inter", 600, "inter-semibold");
-            registerWeight.invoke(instance, "inter", 700, "inter-bold");
             setDefault.invoke(instance, FONTR_KEY);
-            PolyComposeGlyphSource.install(bytes, FontrConfig.antialias);
 
             installedBytes = bytes;
             installed = true;
@@ -105,7 +103,6 @@ public final class PolyComposeFontBridge {
         if ((++tickCounter & 0xFF) != 0) {
             return;
         }
-        PolyComposeGlyphSource.ensureInstalled();
         try {
             Class<?> manager = Class.forName(MANAGER);
             Object instance = manager.getField("INSTANCE").get(null);
@@ -129,6 +126,14 @@ public final class PolyComposeFontBridge {
             }
         } catch (Throwable ignored) {
             unavailable = true;
+        }
+    }
+
+    /** Re-register all aliases using the last installed TTF. */
+    public static void reassert() {
+        byte[] bytes = installedBytes;
+        if (bytes != null) {
+            install(bytes, FontrConfig.pixelSnap);
         }
     }
 
