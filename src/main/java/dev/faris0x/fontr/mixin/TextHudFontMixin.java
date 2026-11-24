@@ -17,7 +17,7 @@ public abstract class TextHudFontMixin {
         method = "Content",
         at = @At(
             value = "INVOKE",
-            target = "Lorg/polyfrost/oneconfig/api/hud/v1/Hud;getFont()Lorg/polyfrost/oneconfig/api/hud/v1/Font;"
+            target = "Lorg/polyfrost/oneconfig/api/hud/v1/TextHud;getFont()Lorg/polyfrost/oneconfig/api/hud/v1/Font;"
         )
     )
     private Font fontr$renderFont(Hud hud) {
