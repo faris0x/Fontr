@@ -92,8 +92,11 @@ public final class FontrRenderer {
             if (FontrConfig.debug && !DEBUG_DRAWN && !page.getValue().isEmpty()) {
                 DEBUG_DRAWN = true;
                 Draw first = page.getValue().get(0);
-                FontrEngine.INSTANCE.log("Draw page: bound=" + GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D)
+                FontrEngine.INSTANCE.log("Draw page: unit="
+                    + (GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE) - GL13.GL_TEXTURE0)
+                    + " bound=" + GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D)
                     + " enabled=" + GL11.glIsEnabled(GL11.GL_TEXTURE_2D)
+                    + " blend=" + GL11.glIsEnabled(GL11.GL_BLEND)
                     + " tex=" + first.entry.texture
                     + " uv=" + first.entry.u1 + "," + first.entry.v1 + ".." + first.entry.u2 + "," + first.entry.v2
                     + " xy=" + first.x1 + "," + first.y1 + ".." + first.x2 + "," + first.y2);
