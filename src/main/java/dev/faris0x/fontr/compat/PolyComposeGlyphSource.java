@@ -165,7 +165,7 @@ public final class PolyComposeGlyphSource {
 
             float u0 = (float) cellX / ATLAS;
             float v0 = (float) cellY / ATLAS;
-            float u1 = (float) (cellX + CELL) / ATLAS;
+            float u1 = (float) (cellX + advance) / ATLAS;
             float v1 = (float) (cellY + CELL) / ATLAS;
 
             Object glyph = glyphConstructor.newInstance(polyBitmap,
