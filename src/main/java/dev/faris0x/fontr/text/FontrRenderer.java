@@ -5,7 +5,6 @@ import net.minecraft.client.render.vertex.BufferBuilder;
 import net.minecraft.client.render.vertex.DefaultVertexFormat;
 import net.minecraft.client.render.vertex.Tesselator;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL13;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -71,8 +70,8 @@ public final class FontrRenderer {
 
         GlStateManager.enableBlend();
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL13.glActiveTexture(GL13.GL_TEXTURE0);
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GlStateManager.activeTexture(0);
+        GlStateManager.enableTexture();
         GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL11.GL_TEXTURE_ENV_MODE, GL11.GL_MODULATE);
         GlStateManager.color4f(1.0F, 1.0F, 1.0F, 1.0F);
 
@@ -98,7 +97,7 @@ public final class FontrRenderer {
         }
 
         if (!lines.isEmpty()) {
-            GL11.glDisable(GL11.GL_TEXTURE_2D);
+            GlStateManager.disableTexture();
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormat.POSITION_COLOR);
             for (Draw line : lines) {
                 int c = line.color;
@@ -112,7 +111,7 @@ public final class FontrRenderer {
                 buffer.vertex(x2, y1, 0).color(c >> 16 & 0xFF, c >> 8 & 0xFF, c & 0xFF, c >>> 24).nextVertex();
             }
             tessellator.end();
-            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GlStateManager.enableTexture();
         }
     }
 
