@@ -84,7 +84,7 @@ public final class FontrFont {
             graphics.dispose();
             if (bounds.height > 0) {
                 float capRatio = bounds.height / 100.0F;
-                pointSize = (lineHeight * 0.80F) / capRatio;
+                pointSize = (lineHeight * 0.80F * dev.faris0x.fontr.config.FontrConfig.fontScale) / capRatio;
             }
         } catch (Throwable ignored) {
         }

@@ -188,9 +188,9 @@ public final class PolyComposeGlyphSource {
         graphics.setComposite(java.awt.AlphaComposite.Src);
         graphics.setColor(Color.WHITE);
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-            FontrConfig.antialias ? RenderingHints.VALUE_ANTIALIAS_ON : RenderingHints.VALUE_ANTIALIAS_OFF);
+            FontrConfig.pixelSnap ? RenderingHints.VALUE_ANTIALIAS_OFF : RenderingHints.VALUE_ANTIALIAS_ON);
         graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-            FontrConfig.antialias ? RenderingHints.VALUE_TEXT_ANTIALIAS_ON : RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+            FontrConfig.pixelSnap ? RenderingHints.VALUE_TEXT_ANTIALIAS_OFF : RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         graphics.setFont(font);
         GlyphVector vector = font.layoutGlyphVector(frc, text.toCharArray(), 0, text.length(),
             Font.LAYOUT_LEFT_TO_RIGHT);

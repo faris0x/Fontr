@@ -49,6 +49,16 @@ public final class FontrConfig extends Config {
     )
     public static int fontSize = 8;
 
+    @Slider(
+        title = "Visual scale",
+        description = "Adjusts glyph size without changing line height. 1.0 matches a 7px Mojangles cap height.",
+        min = 0.5F,
+        max = 1.5F,
+        step = 0.05F,
+        category = CATEGORY_FONT
+    )
+    public static float fontScale = 0.9F;
+
     @Switch(
         title = "Antialiasing",
         description = "Smooth glyph edges. Turn this off for pixel fonts.",

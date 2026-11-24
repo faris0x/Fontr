@@ -223,6 +223,7 @@ public final class FontrEngine {
     private String settingsKey() {
         return FontrConfig.fontPathOrDefault() + '|' + FontrConfig.fontSize + '|'
             + FontrConfig.antialias + '|' + FontrConfig.pixelSnap + '|'
+            + FontrConfig.fontScale + '|'
             + FontrConfig.arabicShaping + '|' + FontrConfig.fallback + '|'
             + FontrConfig.allowResourcePackFontOverride + '|'
             + FontrConfig.applyToPolyCompose;

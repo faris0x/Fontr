@@ -64,7 +64,7 @@ public final class FontrAtlas {
 
         // Rasterise large and let GL_LINEAR minify it. Rendering an 8px TTF at
         // 8px is inherently aliased; this keeps the glyph shapes smooth.
-        int scale = (loadedFont.antialias && !loadedFont.pixelSnap) ? 4 : 1;
+        int scale = loadedFont.pixelSnap ? 1 : 4;
         int pixelWidth = bounds.width * scale;
         int pixelHeight = bounds.height * scale;
         if (pixelWidth > SIZE || pixelHeight > SIZE) {
@@ -76,9 +76,9 @@ public final class FontrAtlas {
         graphics.setComposite(AlphaComposite.Src);
         graphics.setColor(Color.WHITE);
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-            loadedFont.antialias ? RenderingHints.VALUE_ANTIALIAS_ON : RenderingHints.VALUE_ANTIALIAS_OFF);
+            loadedFont.pixelSnap ? RenderingHints.VALUE_ANTIALIAS_OFF : RenderingHints.VALUE_ANTIALIAS_ON);
         graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-            loadedFont.antialias ? RenderingHints.VALUE_TEXT_ANTIALIAS_ON : RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+            loadedFont.pixelSnap ? RenderingHints.VALUE_TEXT_ANTIALIAS_OFF : RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         graphics.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS,
             loadedFont.pixelSnap ? RenderingHints.VALUE_FRACTIONALMETRICS_OFF : RenderingHints.VALUE_FRACTIONALMETRICS_ON);
         graphics.scale(scale, scale);
