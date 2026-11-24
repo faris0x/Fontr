@@ -42,10 +42,10 @@ public final class FontrFont {
     public static FontrFont load(Path path, int size, boolean antialias, boolean pixelSnap,
                                  boolean arabicShaping, String fallbackName) throws Exception {
         Font created = Font.createFont(Font.TRUETYPE_FONT, path.toFile());
-        Font base = created.deriveFont(Font.PLAIN, (float) size);
+        Font base = deriveVisualSize(created, (float) size);
         Font fallback = null;
         if (fallbackName != null) {
-            fallback = new Font(fallbackName, Font.PLAIN, size);
+            fallback = deriveVisualSize(new Font(fallbackName, Font.PLAIN, size), (float) size);
         }
 
         BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
@@ -54,12 +54,43 @@ public final class FontrFont {
         graphics.setFont(base);
         FontMetrics metrics = graphics.getFontMetrics();
         FontRenderContext frc = graphics.getFontRenderContext();
-        int baseline = Math.max(1, Math.round(metrics.getAscent()) - 1);
+        // Minecraft's line is `size` pixels tall. Put the baseline one pixel
+        // above the bottom instead of using the font's em ascent (some fonts
+        // have ascent == em and would push glyphs out of the line).
+        int baseline = Math.max(1, size - 1);
         int descent = Math.round(metrics.getDescent());
         graphics.dispose();
 
         return new FontrFont(base, fallback, size, antialias, pixelSnap,
                              arabicShaping, frc, baseline, descent);
+    }
+
+    /**
+     * Pixel fonts often have a cap height far below their em size (this one is
+     * ~58%). Deriving at the raw pixel size then produces 4px blobs in a 9px
+     * line. Scale the point size so a capital H occupies ~80% of the requested
+     * line height while keeping the same baseline/line spacing.
+     */
+    public static Font deriveVisualSize(Font created, float lineHeight) {
+        float pointSize = lineHeight;
+        try {
+            BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = probe.createGraphics();
+            Font probeFont = created.deriveFont(Font.PLAIN, 100.0F);
+            graphics.setFont(probeFont);
+            FontRenderContext frc = graphics.getFontRenderContext();
+            GlyphVector vector = probeFont.createGlyphVector(frc, "H");
+            java.awt.Rectangle bounds = vector.getPixelBounds(frc, 0, 0);
+            graphics.dispose();
+            if (bounds.height > 0) {
+                float capRatio = bounds.height / 100.0F;
+                pointSize = (lineHeight * 0.80F) / capRatio;
+            }
+        } catch (Throwable ignored) {
+        }
+        // Never shrink below the requested size, and avoid absurd scaling.
+        pointSize = Math.max(lineHeight, Math.min(lineHeight * 2.5F, pointSize));
+        return created.deriveFont(Font.PLAIN, pointSize);
     }
 
     private static void setHints(Graphics2D graphics, boolean antialias, boolean pixelSnap) {

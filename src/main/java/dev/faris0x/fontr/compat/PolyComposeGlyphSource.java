@@ -1,6 +1,7 @@
 package dev.faris0x.fontr.compat;
 
 import dev.faris0x.fontr.config.FontrConfig;
+import dev.faris0x.fontr.text.FontrFont;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -95,8 +96,8 @@ public final class PolyComposeGlyphSource {
 
     private static void initialise(byte[] ttf, boolean antialias, Class<?> mcGlyph, Class<?> bitmapClass)
         throws Exception {
-        font = Font.createFont(Font.TRUETYPE_FONT, new ByteArrayInputStream(ttf))
-            .deriveFont(Font.PLAIN, (float) CELL);
+        font = FontrFont.deriveVisualSize(
+            Font.createFont(Font.TRUETYPE_FONT, new ByteArrayInputStream(ttf)), (float) CELL);
         BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = probe.createGraphics();
         graphics.setFont(font);
