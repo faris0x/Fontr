@@ -197,6 +197,7 @@ public final class FontrAtlas {
             GL11.glGenTextures(ids);
             texture = ids.get(0);
             GlStateManager.activeTexture(GL13.GL_TEXTURE0);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
             GlStateManager.bindTexture(texture);
 
             ByteBuffer buffer = BufferUtils.createByteBuffer(SIZE * SIZE * 4);
@@ -222,6 +223,7 @@ public final class FontrAtlas {
             buffer.flip();
 
             GlStateManager.activeTexture(GL13.GL_TEXTURE0);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
             GlStateManager.bindTexture(texture);
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
             GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, x, y, width, height,

@@ -74,6 +74,7 @@ public final class FontrRenderer {
         GlStateManager.enableBlend();
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.activeTexture(GL13.GL_TEXTURE0);
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
         GlStateManager.enableTexture();
         GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL11.GL_TEXTURE_ENV_MODE, GL11.GL_MODULATE);
         GlStateManager.color4f(1.0F, 1.0F, 1.0F, 1.0F);
@@ -83,6 +84,7 @@ public final class FontrRenderer {
 
         boolean debugLogged = false;
         for (Map.Entry<Integer, List<Draw>> page : byTexture.entrySet()) {
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, page.getKey());
             GlStateManager.bindTexture(page.getKey());
             if (FontrConfig.debug && !debugLogged && !page.getValue().isEmpty()) {
                 debugLogged = true;
@@ -110,6 +112,7 @@ public final class FontrRenderer {
         }
 
         if (!lines.isEmpty()) {
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
             GlStateManager.disableTexture();
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormat.POSITION_COLOR);
             for (Draw line : lines) {
@@ -124,6 +127,7 @@ public final class FontrRenderer {
                 buffer.vertex(x2, y1, 0).color(c >> 16 & 0xFF, c >> 8 & 0xFF, c & 0xFF, c >>> 24).nextVertex();
             }
             tessellator.end();
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
             GlStateManager.enableTexture();
         }
     }
