@@ -1,8 +1,9 @@
 package dev.faris0x.fontr.text;
 
-import net.minecraft.client.render.platform.GlStateManager;
 import org.lwjgl.BufferUtils;
+import net.minecraft.client.render.platform.GlStateManager;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -160,10 +161,11 @@ public final class FontrAtlas {
             IntBuffer ids = BufferUtils.createIntBuffer(1);
             GL11.glGenTextures(ids);
             texture = ids.get(0);
+            GL13.glActiveTexture(GL13.GL_TEXTURE0);
             GlStateManager.bindTexture(texture);
 
             ByteBuffer buffer = BufferUtils.createByteBuffer(SIZE * SIZE * 4);
-            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_ALPHA8, SIZE, SIZE, 0,
+            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, SIZE, SIZE, 0,
                               GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
             int filter = loadedFont.pixelSnap ? GL11.GL_NEAREST : GL11.GL_LINEAR;
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, filter);
@@ -184,6 +186,7 @@ public final class FontrAtlas {
             }
             buffer.flip();
 
+            GL13.glActiveTexture(GL13.GL_TEXTURE0);
             GlStateManager.bindTexture(texture);
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
             GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, x, y, width, height,

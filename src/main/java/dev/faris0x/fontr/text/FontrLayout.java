@@ -261,7 +261,13 @@ public final class FontrLayout {
             accumulated += glyph.advance;
             cut = Math.max(cut, glyph.originalIndex + 1);
         }
-        return safeBoundary(cut);
+        cut = safeBoundary(cut);
+        // Never report zero progress for a non-empty string; vanilla's
+        // insertLineBreaks() recurses forever when the cut index is 0.
+        if (cut <= 0 && !original.isEmpty()) {
+            cut = 1;
+        }
+        return cut;
     }
 
     private int safeBoundary(int index) {
