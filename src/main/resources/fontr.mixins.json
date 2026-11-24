@@ -17,6 +17,7 @@
 		"HudMcTextArabicMixin",
 		"HudMcFontMeasureMixin",
 		"LyricsLineLayoutMixin",
+		"LyricsKaraokeMixin",
 		"FullWidthGlyphMixin",
 		"ArgentumGlyphWidthMixin"
 	],

@@ -59,6 +59,7 @@ java {
 jar {
 	// Signature-only stubs for the optional Argentum integration; never shipped.
 	exclude 'dev/rdh/**'
+	exclude 'org/polyfrost/**'
 	manifest {
 		attributes(
 			'Implementation-Title': 'Fontr',
@@ -70,4 +71,5 @@ jar {
 // Signature-only stubs for the optional Argentum integration; never shipped.
 tasks.withType(Jar).configureEach {
 	exclude 'dev/rdh/**'
+	exclude 'org/polyfrost/**'
 }
