@@ -27,7 +27,10 @@ public final class PolyComposeFontBridge {
     private static final String[] FAMILIES = {
         "sans-serif", "serif", "monospace", "cursive",
         // Minecraft-styled text used by PolyCompose HUD modules.
-        "polycompose:minecraft", "polycompose:minecraft-bold"
+        "polycompose:minecraft", "polycompose:minecraft-bold",
+        // OneConfig/PolyCompose UI families. These are explicitly requested by
+        // many components, so setting only the default is not enough.
+        "inter", "inter-medium", "inter-semibold", "inter-bold"
     };
 
     private static volatile boolean installed;
@@ -68,6 +71,11 @@ public final class PolyComposeFontBridge {
             for (String family : FAMILIES) {
                 register.invoke(instance, family, bytes, pixelAligned);
             }
+            Method registerWeight = manager.getMethod("registerWeight", String.class, int.class, String.class);
+            registerWeight.invoke(instance, "inter", 400, "inter");
+            registerWeight.invoke(instance, "inter", 500, "inter-medium");
+            registerWeight.invoke(instance, "inter", 600, "inter-semibold");
+            registerWeight.invoke(instance, "inter", 700, "inter-bold");
             setDefault.invoke(instance, FONTR_KEY);
             PolyComposeGlyphSource.install(bytes, FontrConfig.antialias);
 
@@ -102,10 +110,22 @@ public final class PolyComposeFontBridge {
             Class<?> manager = Class.forName(MANAGER);
             Object instance = manager.getField("INSTANCE").get(null);
             Method fontData = manager.getMethod("fontData", String.class);
-            Object current = fontData.invoke(instance, DEFAULT_KEY);
-            if (current != installedBytes) {
+            boolean changed = fontData.invoke(instance, DEFAULT_KEY) != installedBytes;
+            if (changed) {
                 manager.getMethod("setDefault", String.class).invoke(instance, FONTR_KEY);
                 log("Re-asserted Fontr as PolyCompose default font");
+            }
+            // PolyCompose registers Inter after mods initialise. If that
+            // replaced any of our aliases, put them back.
+            Method register = manager.getMethod("register", String.class, byte[].class, boolean.class);
+            for (String family : FAMILIES) {
+                if (fontData.invoke(instance, family) != installedBytes) {
+                    register.invoke(instance, family, installedBytes, FontrConfig.pixelSnap);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                log("Re-asserted Fontr PolyCompose font aliases");
             }
         } catch (Throwable ignored) {
             unavailable = true;

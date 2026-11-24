@@ -73,12 +73,14 @@ public final class FontrEngine {
         if (!FontrConfig.enabled) {
             return false;
         }
-        if (fontLocation == null || !fontLocation.toString().endsWith("textures/font/ascii.png")) {
+        // Handle every TextRenderer that loads a bitmap font page, not only
+        // the default ascii.png (e.g. ascii_sga.png for the enchanting table).
+        String location = fontLocation == null ? "" : fontLocation.toString();
+        if (!(location.endsWith(".png") && location.contains("/font/"))) {
             if (FontrConfig.debug) {
-                String location = String.valueOf(fontLocation);
                 synchronized (loggedLocations) {
                     if (loggedLocations.size() < 8 && loggedLocations.add(location)) {
-                        log("Ignoring non-ascii TextRenderer " + location);
+                        log("Ignoring non-font TextRenderer " + location);
                     }
                 }
             }
