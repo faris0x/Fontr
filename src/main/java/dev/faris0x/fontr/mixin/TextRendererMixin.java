@@ -27,6 +27,9 @@ public abstract class TextRendererMixin {
     @Shadow
     private float x;
 
+    @Shadow
+    private float y;
+
     @Inject(method = "drawLayer(Ljava/lang/String;FFIZ)I", at = @At("HEAD"), cancellable = true)
     private void fontr$drawLayer(String text, float x, float y, int color, boolean shadow,
                                  CallbackInfoReturnable<Integer> cir) {
@@ -48,6 +51,7 @@ public abstract class TextRendererMixin {
         Integer advance = FontrEngine.INSTANCE.render(text, x, y, argb, shadow);
         if (advance != null) {
             this.x = x + advance;
+            this.y = y;
             cir.setReturnValue(advance);
         }
     }
