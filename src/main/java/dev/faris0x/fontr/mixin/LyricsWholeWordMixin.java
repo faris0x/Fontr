@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
  * slot 57 is the trimmed word, slot 58 is the internal {@code held} flag that
  * selects the per-character path.</p>
  */
-@Mixin(targets = "org.polyfrost.evergreenhud.client.hud.media.LyricsHudKt", remap = false)
+@Mixin(targets = "org.polyfrost.evergreenhud.client.hud.media.LyricsHud", remap = false)
 public abstract class LyricsWholeWordMixin {
     private static String fontr$word;
     private static boolean fontr$wordLogged;
