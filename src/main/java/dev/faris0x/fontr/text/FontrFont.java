@@ -40,7 +40,7 @@ public final class FontrFont {
                                  String fallbackName) throws Exception {
         Font created = Font.createFont(Font.TRUETYPE_FONT, path.toFile());
         FontRenderContext frc = new FontRenderContext(null, true, false);
-        float capLogical = Math.max(4.0F, (fontSize - 1) * fontScale);
+        float capLogical = Math.min(7.0F, Math.max(4.0F, (fontSize - 1) * fontScale));
 
         Font base = derive(created, capLogical, frc);
         Font fallback = null;

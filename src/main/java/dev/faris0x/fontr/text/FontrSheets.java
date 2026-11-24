@@ -84,7 +84,7 @@ public final class FontrSheets {
         }
 
         byte[] result = new byte[65536];
-        byte[] original = readBaseBytes("textures/font/glyph_sizes.bin");
+        byte[] original = readBaseBytes("font/glyph_sizes.bin");
         if (original != null && original.length == 65536) {
             System.arraycopy(original, 0, result, 0, result.length);
         }

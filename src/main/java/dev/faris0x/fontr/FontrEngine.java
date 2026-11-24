@@ -35,9 +35,10 @@ public final class FontrEngine {
 
     private static final Logger LOGGER = LogManager.getLogger("Fontr");
     private static final String FONT_ROOT = "minecraft:textures/font/";
-    private static final String GLYPH_SIZES = "minecraft:textures/font/glyph_sizes.bin";
+    private static final String GLYPH_SIZES = "minecraft:font/glyph_sizes.bin";
     private static final String ASCII = "minecraft:textures/font/ascii.png";
     private static final String UNICODE = "minecraft:textures/font/unicode_page_";
+    private static final String UNICODE_ALT = "minecraft:font/unicode_page_";
 
     private static final ThreadLocal<Boolean> INTERNAL_READ =
         ThreadLocal.withInitial(() -> Boolean.FALSE);
@@ -50,6 +51,7 @@ public final class FontrEngine {
     private volatile Runnable settingsPoller;
     private volatile ResourceManager lastManager;
     private volatile boolean pendingReload;
+    private volatile boolean served;
     private volatile int tickCounter;
     private volatile boolean loggedResourceHit;
 
@@ -89,7 +91,10 @@ public final class FontrEngine {
         String key = FontrSettings.sheetKey();
         if (!key.equals(loadedKey) || (sheets == null && FontrSettings.enabled)) {
             reloadIfNeeded();
-            pendingReload = true;
+            // Do not force a reload during startup before the game has read a font.
+            if (served) {
+                pendingReload = true;
+            }
         }
         if (FontrSettings.applyToPolyCompose && !PolyComposeFontBridge.isInstalled()
             && loadedPath != null) {
@@ -119,7 +124,8 @@ public final class FontrEngine {
             return null;
         }
         String name = location.toString();
-        if (!(name.equals(ASCII) || name.equals(GLYPH_SIZES) || name.startsWith(UNICODE))) {
+        if (!(name.equals(ASCII) || name.equals(GLYPH_SIZES)
+            || name.startsWith(UNICODE) || name.startsWith(UNICODE_ALT))) {
             return null;
         }
         lastManager = manager;
@@ -129,6 +135,7 @@ public final class FontrEngine {
             return null;
         }
         try {
+            served = true;
             if (!loggedResourceHit && FontrSettings.debug) {
                 loggedResourceHit = true;
                 LOGGER.info("[Fontr] Serving generated font resources (" + name + ")");
@@ -139,7 +146,8 @@ public final class FontrEngine {
             if (name.equals(GLYPH_SIZES)) {
                 return FontrResource.of(location, current.glyphSizes());
             }
-            int block = parseBlock(name);
+            int block = parseBlock(name.startsWith(UNICODE_ALT) ? name.substring(UNICODE_ALT.length())
+                : name.substring(UNICODE.length()));
             if (block < 0) {
                 return null;
             }
@@ -151,8 +159,7 @@ public final class FontrEngine {
         }
     }
 
-    private static int parseBlock(String name) {
-        String rest = name.substring(UNICODE.length());
+    private static int parseBlock(String rest) {
         if (rest.endsWith(".png")) {
             rest = rest.substring(0, rest.length() - 4);
         }
@@ -216,13 +223,9 @@ public final class FontrEngine {
         if (manager == null) {
             return null;
         }
-        String[] parts = path.split("/", 2);
-        if (parts.length != 2) {
-            return null;
-        }
         try {
             INTERNAL_READ.set(Boolean.TRUE);
-            Resource resource = manager.getResource(new Identifier(parts[0], parts[1]));
+            Resource resource = manager.getResource(new Identifier("minecraft", path));
             return resource == null ? null : resource.asStream();
         } catch (Throwable t) {
             return null;

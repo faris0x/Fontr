@@ -39,27 +39,17 @@ public final class FontrConfig extends Config {
 
     @Dropdown(
         title = "Sheet resolution",
-        description = "Resolution of the generated ASCII sheet. 4096 is 32x supersampling; 8192 uses ~256 MB of VRAM.",
+        description = "Resolution of the generated ASCII sheet. 4096 is 32x supersampling (~85 MB VRAM); 8192 is 64x (~340 MB VRAM).",
         options = {"4096 (recommended)", "8192 (maximum)"},
         category = CATEGORY_FONT
     )
     public static String resolution = "4096 (recommended)";
 
     @Slider(
-        title = "Line height",
-        description = "Minecraft's text line height in pixels. Leave at 8 to match the vanilla font.",
-        min = 8,
-        max = 16,
-        step = 1,
-        category = CATEGORY_FONT
-    )
-    public static int fontSize = 8;
-
-    @Slider(
         title = "Glyph scale",
         description = "Adjusts cap height within the 8px line. 1.0 matches Mojangles' 7px caps.",
         min = 0.7F,
-        max = 1.2F,
+        max = 1.0F,
         step = 0.05F,
         category = CATEGORY_FONT
     )
@@ -108,7 +98,7 @@ public final class FontrConfig extends Config {
         FontrSettings.fontPath = fontPath == null || fontPath.trim().isEmpty()
             ? "Fontr/font.ttf" : fontPath.trim();
         FontrSettings.resolution = resolution != null && resolution.startsWith("8192") ? 8192 : 4096;
-        FontrSettings.fontSize = Math.max(8, fontSize);
+        FontrSettings.fontSize = 8;
         FontrSettings.fontScale = fontScale;
         FontrSettings.antialias = antialias;
         FontrSettings.fallback = fallback;
