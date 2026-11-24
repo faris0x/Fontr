@@ -12,7 +12,7 @@ Fontr does not hook any text renderer. It registers a required, fixed, top-of-st
 
 | Resource | Generated from |
 |---|---|
-| `textures/font/ascii.png` | 16x16 grid at 4096x4096 by default (256 px cells, 32x supersampling) |
+| `textures/font/ascii.png` | 16x16 grid at 4096x4096 by default, filled using Minecraft's legacy cell layout |
 | `textures/font/unicode_page_XX.png` | 256x256 pages, generated lazily for the blocks the font covers |
 | `font/glyph_sizes.bin` | per-codepoint advances, merged with the pack's original widths |
 
@@ -26,9 +26,19 @@ Arabic text is rewritten before it reaches the renderer: a small argument-level
 mixin joins letters with ICU and reorders right-to-left runs, and the same
 transform is applied to the width/trim helpers so layout stays consistent.
 
-Cap height is normalised to the vanilla 7px cap in an 8px line. Fallback glyphs
-(codepoints missing from the selected font) are rasterised from the configured
-system fallback; if that also lacks a glyph, the pack's original cell is kept.
+The ASCII sheet follows Minecraft's legacy cell grid, so cell `0xFE` is `■`
+(not `þ`) and the box-drawing range matches vanilla. Cap height and baseline are
+computed from the font's own letters/descenders so glyphs are not clipped by the
+8px line; outliers are squeezed per glyph. Fallback glyphs (codepoints missing
+from the selected font) are rasterised from the configured system fallback; if
+that also lacks a glyph, the pack's original cell is kept.
+
+Real bold and italic faces are generated as separate sheets when available
+(auto-detected next to the font or selected explicitly). Vanilla renders ASCII
+styled text from those sheets and skips its synthetic double-draw/slant.
+Argentum's batched chat/nametags are taught to use the same sheets through an
+optional runtime mixin (no Argentum code is bundled or modified), so true styles
+apply there too when the faces exist.
 
 ## Requirements
 
@@ -62,11 +72,15 @@ Changing a setting reloads resources automatically.
 - **Font file** — TTF/OTF path, relative to `.minecraft/config/` or absolute.
 - **Sheet resolution** — `4096` (32x supersampling, ~85 MB VRAM) or `8192`
   (64x, ~340 MB VRAM including mipmaps).
-- **Glyph scale** — cap height within the 8px line. `1.0` matches Mojangles.
+- **Bold / Italic / Bold-italic font** — optional; empty auto-detects faces.
+- **Glyph scale** — scales the fitted size. `1.0` is the largest size that fits
+  the 8px line without clipping; higher values may clip.
 - **Letter spacing** — extra pixels between glyphs; negative tightens text.
 - **Embolden** — strokes glyph outlines for thin fonts at 8px.
 - **Antialiasing** — off for pixel fonts.
+- **Styled sheet resolution** — 2048 (default) or 4096 for bold/italic sheets.
 - **Mipmaps** — mip chain for font textures; turn off to compare sharpness.
+- **Use real bold/italic faces** / **Real styles in Argentum text**.
 - **Fallback** — system font used for codepoints missing from the main font.
 - **Arabic shaping + RTL** — joins Arabic letters and reorders RTL runs.
 - **Apply to OneConfig UI** — also register the TTF with PolyCompose so the
@@ -85,8 +99,12 @@ This repository does not include the font. Do not redistribute it.
   the vast majority of UI text) is supersampled.
 - Keep Cera's `hd_fonts` off. Fontr supplies its own HD sheet; Cera's HD-font
   path would re-read the pack's sheet and undo the override.
-- Bold remains vanilla's synthetic bold (the glyph is drawn twice, offset by
-  1px); a bitmap font format cannot carry a separate bold face.
+- If no bold/italic face is found, Fontr falls back to vanilla's synthetic bold
+  (draw twice) and slant. True styles require actual face files; variable fonts
+  only expose their default instance to AWT.
+- Argentum integration is best-effort: it targets Argentum's internal batcher at
+  runtime and is compiled against signature-only stubs (no Argentum code is
+  shipped). If a future Argentum changes the batcher, the feature disables itself.
 - PolyCompose's accented/non-Latin European sheets (`accented.png`,
   `nonlatin_european.png`) are not regenerated yet; those characters still come
   from the selected resource pack.
