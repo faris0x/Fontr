@@ -262,10 +262,19 @@ public final class FontrLayout {
             cut = Math.max(cut, glyph.originalIndex + 1);
         }
         cut = safeBoundary(cut);
-        // Never report zero progress for a non-empty string; vanilla's
-        // insertLineBreaks() recurses forever when the cut index is 0.
-        if (cut <= 0 && !original.isEmpty()) {
-            cut = 1;
+        // insertLineBreaks() rebuilds the same string unless the cut is at a
+        // whitespace boundary or the end. Returning a single-character cut
+        // here caused an infinite recursion for words that did not fit.
+        if (cut <= 0 || cut >= original.length()) {
+            return original.length();
+        }
+        char before = original.charAt(cut - 1);
+        char at = original.charAt(cut);
+        if (before != ' ' && before != '\n' && at != ' ' && at != '\n') {
+            int space = original.indexOf(' ', cut);
+            int newline = original.indexOf('\n', cut);
+            int next = space < 0 ? newline : (newline < 0 ? space : Math.min(space, newline));
+            return next < 0 ? original.length() : next + 1;
         }
         return cut;
     }
