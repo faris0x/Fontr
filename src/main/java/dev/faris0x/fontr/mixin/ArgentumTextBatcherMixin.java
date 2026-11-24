@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import dev.faris0x.fontr.FontrEngine;
+import dev.faris0x.fontr.FontrSettings;
 import dev.faris0x.fontr.compat.ArgentumStyles;
 import dev.rdh.argentum.impl.render.gui.TextBatcher;
 import dev.rdh.argentum.impl.render.gui.font.FontSet;
@@ -35,7 +36,9 @@ public abstract class ArgentumTextBatcherMixin {
         if (location == null || !location.toString().endsWith("font/ascii.png")) {
             return;
         }
-        FontrEngine.INSTANCE.adjustArgentumWidths(this.widths, characterWidths);
+        if (FontrSettings.fullWidthGlyphs) {
+            FontrEngine.INSTANCE.adjustArgentumWidths(this.widths, characterWidths);
+        }
         ArgentumStyles.setWidths(this.widths);
     }
 

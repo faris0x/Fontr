@@ -225,7 +225,8 @@ public final class FontrSheets {
             int advance = advance(codepoint);
             graphics.setClip(x, y, cell, cell);
             font.drawGlyph(graphics, codepoint, scale, x, y + baseline,
-                (float) advance * scale, embolden, style, y, y + cell, 0.8F, 1.0F);
+                (float) (advance - (dev.faris0x.fontr.FontrSettings.fullWidthGlyphs ? 0 : 1)) * scale,
+                embolden, style, y, y + cell, 0.8F, 1.0F);
             graphics.setClip(null);
 
             // readFontTexture() derives advances from the rightmost non-transparent
@@ -269,8 +270,9 @@ public final class FontrSheets {
             graphics.fillRect(x, y, UNICODE_CELL, UNICODE_CELL);
             graphics.setColor(Color.WHITE);
             font.drawGlyph(graphics, codepoint, fit.scale, x, y + fit.baseline,
-                (float) fit.advances[offset] * 2.0F, embolden, Style.REGULAR, y, y + UNICODE_CELL,
-                0.5F, scriptHeight);
+                (float) (fit.advances[offset]
+                    - (dev.faris0x.fontr.FontrSettings.fullWidthGlyphs ? 0 : 1)) * 2.0F,
+                embolden, Style.REGULAR, y, y + UNICODE_CELL, 0.5F, scriptHeight);
             graphics.setClip(null);
         }
         graphics.dispose();

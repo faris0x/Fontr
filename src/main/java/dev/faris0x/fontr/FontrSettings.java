@@ -25,6 +25,7 @@ public final class FontrSettings {
     public static volatile boolean antialias = true;
     public static volatile boolean mipmaps = true;
     public static volatile boolean trueStyles = true;
+    public static volatile boolean fullWidthGlyphs = false;
     public static volatile boolean argentumStyles = true;
     public static volatile boolean arabicShaping = true;
     public static volatile String fallback = "System SansSerif";
@@ -32,7 +33,7 @@ public final class FontrSettings {
     public static volatile boolean debug = false;
 
     /** Bump when the sheet builder changes so old caches are ignored. */
-    private static final int SHEET_VERSION = 7;
+    private static final int SHEET_VERSION = 8;
 
     private FontrSettings() {
     }
@@ -42,7 +43,7 @@ public final class FontrSettings {
         return SHEET_VERSION + "|" + fontPath + '|' + boldFont + '|' + italicFont + '|'
             + boldItalicFont + '|' + resolution + '|' + styledResolution + '|'
             + fontSize + '|' + fontScale + '|' + letterSpacing + '|' + embolden + '|' + scriptScale + '|' + scriptOffset + '|' + scriptHeight + '|'
-            + antialias + '|' + trueStyles + '|' + fallback;
+            + antialias + '|' + trueStyles + '|' + fullWidthGlyphs + '|' + fallback;
     }
 
     public static String fontName() {

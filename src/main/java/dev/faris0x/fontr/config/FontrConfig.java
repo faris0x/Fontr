@@ -133,6 +133,13 @@ public final class FontrConfig extends Config {
     public static float scriptHeight = 1.0F;
 
     @Switch(
+        title = "Full-width glyphs",
+        description = "Draw glyphs at their full natural ink width instead of vanilla's charWidth-1. May misalign VanillaHud captured text.",
+        category = CATEGORY_FONT
+    )
+    public static boolean fullWidthGlyphs = false;
+
+    @Switch(
         title = "Antialiasing",
         description = "Smooth glyph edges in the generated sheet. Turn off for pixel fonts.",
         category = CATEGORY_FONT
@@ -217,6 +224,7 @@ public final class FontrConfig extends Config {
         FontrSettings.styledResolution = styledResolution != null && styledResolution.startsWith("4096")
             ? 4096 : 2048;
         FontrSettings.trueStyles = trueStyles;
+        FontrSettings.fullWidthGlyphs = fullWidthGlyphs;
         FontrSettings.argentumStyles = argentumStyles;
         FontrSettings.fontSize = 8;
         FontrSettings.fontScale = fontScale;

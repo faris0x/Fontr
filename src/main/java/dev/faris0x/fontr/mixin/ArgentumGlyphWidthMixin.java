@@ -11,6 +11,6 @@ public abstract class ArgentumGlyphWidthMixin {
     @ModifyConstant(method = "bitmap", constant = @Constant(floatValue = 1.01F), remap = false,
         require = 0)
     private float fontr$width(float original) {
-        return 0.0F;
+        return dev.faris0x.fontr.FontrSettings.fullWidthGlyphs ? 0.0F : original;
     }
 }

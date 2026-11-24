@@ -14,6 +14,6 @@ import org.spongepowered.asm.mixin.injection.ModifyConstant;
 public abstract class FullWidthGlyphMixin {
     @ModifyConstant(method = "drawBasicGlyph", constant = @Constant(floatValue = 1.0F), require = 0)
     private float fontr$fullWidth(float original) {
-        return 0.0F;
+        return dev.faris0x.fontr.FontrSettings.fullWidthGlyphs ? 0.0F : original;
     }
 }
