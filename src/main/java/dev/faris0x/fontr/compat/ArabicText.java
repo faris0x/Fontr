@@ -26,7 +26,16 @@ public final class ArabicText {
     private ArabicText() {
     }
 
-    /** Transform for HUD/Compose drawing, honouring the Fontr settings. */
+    /** Compose paragraphs already run bidi, so only join the letters. */
+    public static String forCompose(String text) {
+        if (!dev.faris0x.fontr.FontrSettings.enabled
+            || !dev.faris0x.fontr.FontrSettings.arabicShaping) {
+            return text;
+        }
+        return shapeOnly(text);
+    }
+
+    /** Transform for HUD drawing, honouring the Fontr settings. */
     public static String forHud(String text) {
         if (!dev.faris0x.fontr.FontrSettings.enabled
             || !dev.faris0x.fontr.FontrSettings.arabicShaping) {
@@ -52,13 +61,34 @@ public final class ArabicText {
         return result;
     }
 
+    public static String shapeOnly(String text) {
+        if (text == null || text.isEmpty() || !containsArabic(text)) {
+            return text;
+        }
+        synchronized (CACHE) {
+            String cached = CACHE.get("\u0001" + text);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        String result = process(text, false);
+        synchronized (CACHE) {
+            CACHE.put("\u0001" + text, result);
+        }
+        return result;
+    }
+
     private static String process(String text) {
+        return process(text, true);
+    }
+
+    private static String process(String text, boolean reorder) {
         StringBuilder out = new StringBuilder(text.length());
         StringBuilder segment = new StringBuilder();
         for (int i = 0; i < text.length(); ) {
             char c = text.charAt(i);
             if (c == '\u00A7' && i + 1 < text.length()) {
-                flush(out, segment);
+                flush(out, segment, reorder);
                 out.append(c).append(text.charAt(i + 1));
                 i += 2;
             } else {
@@ -66,21 +96,24 @@ public final class ArabicText {
                 i++;
             }
         }
-        flush(out, segment);
+        flush(out, segment, reorder);
         return out.toString();
     }
 
-    private static void flush(StringBuilder out, StringBuilder segment) {
+    private static void flush(StringBuilder out, StringBuilder segment, boolean reorder) {
         if (segment.length() == 0) {
             return;
         }
-        out.append(shape(segment.toString()));
+        out.append(shape(segment.toString(), reorder));
         segment.setLength(0);
     }
 
-    private static String shape(String text) {
+    private static String shape(String text, boolean reorder) {
         try {
             String shaped = new ArabicShaping(ArabicShaping.LETTERS_SHAPE).shape(text);
+            if (!reorder) {
+                return shaped;
+            }
             char[] chars = shaped.toCharArray();
             if (!Bidi.requiresBidi(chars, 0, chars.length)) {
                 return shaped;

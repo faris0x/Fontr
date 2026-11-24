@@ -97,7 +97,8 @@ Changing a setting reloads resources automatically.
 - **Use real bold/italic faces** / **Real styles in Argentum text**.
 - **Fallback** — system font used for codepoints missing from the main font.
 - **Arabic shaping + RTL** — joins Arabic letters and reorders RTL runs in
-  vanilla text, PolyCompose HUD text (OneConfig/EvergreenHUD) and measures.
+  vanilla text, PolyCompose RenderContext HUD text (OneConfig/EvergreenHUD) and
+  measures. Compose paragraphs are shaped before PolyCompose's own bidi.
 - **Apply to OneConfig UI** — also register the TTF with PolyCompose so the
   mod menu and OneConfig HUD match.
 - **Debug logging** — logs cache keys, generated pages and resource hits.
