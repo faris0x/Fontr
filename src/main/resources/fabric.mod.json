@@ -5,13 +5,14 @@
 	"name": "Fontr",
 	"description": "A global TrueType/OpenType font override for Minecraft 1.8.9. Generates high-resolution font sheets from a TTF/OTF and serves them to every text renderer.",
 	"authors": [
-		"Faris"
+		"Faris Alfarhan"
 	],
 	"contact": {
 		"homepage": "https://faris0x.dev",
-		"sources": "https://faris0x.dev"
+		"sources": "https://github.com/faris0x/Fontr",
+		"issues": "https://github.com/faris0x/Fontr/issues"
 	},
-	"license": "MIT",
+	"license": "GPL-3.0-only",
 	"icon": "assets/fontr/icon.png",
 	"environment": "client",
 	"entrypoints": {
