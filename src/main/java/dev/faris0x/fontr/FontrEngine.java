@@ -10,6 +10,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.resource.pack.ResourcePack;
 import net.minecraft.client.resource.pack.ResourcePacks;
 import net.minecraft.resource.Identifier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +28,7 @@ import java.util.Set;
  */
 public final class FontrEngine {
     public static final FontrEngine INSTANCE = new FontrEngine();
+    private static final Logger LOGGER = LogManager.getLogger("Fontr");
 
     private static final int MAX_LAYOUTS = 4096;
     private static final long RESOURCE_PACK_CACHE_MS = 1000L;
@@ -53,7 +56,7 @@ public final class FontrEngine {
 
     public void log(String message) {
         if (FontrConfig.debug) {
-            System.out.println("[Fontr] " + message);
+            LOGGER.info("[Fontr] " + message);
         }
     }
 
