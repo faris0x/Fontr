@@ -25,9 +25,12 @@ public final class FontrSettings {
     private FontrSettings() {
     }
 
+    /** Bump when the sheet builder changes so old caches are ignored. */
+    private static final int SHEET_VERSION = 2;
+
     /** Everything that changes the generated sheets. */
     public static String sheetKey() {
-        return fontPath + '|' + resolution + '|' + fontSize + '|' + fontScale + '|'
+        return SHEET_VERSION + "|" + fontPath + '|' + resolution + '|' + fontSize + '|' + fontScale + '|'
             + letterSpacing + '|' + embolden + '|' + antialias + '|' + fallback;
     }
 

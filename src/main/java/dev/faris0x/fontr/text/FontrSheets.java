@@ -167,6 +167,7 @@ public final class FontrSheets {
             }
         }
         graphics.dispose();
+        whitenTransparent(sheet);
         return sheet;
     }
 
@@ -198,12 +199,29 @@ public final class FontrSheets {
             graphics.setClip(null);
         }
         graphics.dispose();
+        whitenTransparent(page);
         return page;
     }
 
     /** Advance in the 8px line, including the user's letter spacing. */
     private int advance(int codepoint) {
         return Math.max(2, Math.min(8, Math.round(font.advance(codepoint) + letterSpacing)));
+    }
+
+    /**
+     * Transparent pixels are black by default. With linear filtering/mipmaps that
+     * darkens glyph edges into halos, so make the background white-but-invisible.
+     */
+    private static void whitenTransparent(BufferedImage image) {
+        try {
+            int[] data = ((java.awt.image.DataBufferInt) image.getRaster().getDataBuffer()).getData();
+            for (int i = 0; i < data.length; i++) {
+                if ((data[i] & 0xFF000000) == 0) {
+                    data[i] = 0x00FFFFFF;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private void copyCell(Graphics2D graphics, BufferedImage baseImage, int codepoint,
