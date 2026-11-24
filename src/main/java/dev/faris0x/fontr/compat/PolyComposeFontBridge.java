@@ -69,6 +69,7 @@ public final class PolyComposeFontBridge {
                 register.invoke(instance, family, bytes, pixelAligned);
             }
             setDefault.invoke(instance, FONTR_KEY);
+            PolyComposeGlyphSource.install(bytes, FontrConfig.antialias);
 
             installedBytes = bytes;
             installed = true;
@@ -96,6 +97,7 @@ public final class PolyComposeFontBridge {
         if ((++tickCounter & 0xFF) != 0) {
             return;
         }
+        PolyComposeGlyphSource.ensureInstalled();
         try {
             Class<?> manager = Class.forName(MANAGER);
             Object instance = manager.getField("INSTANCE").get(null);
