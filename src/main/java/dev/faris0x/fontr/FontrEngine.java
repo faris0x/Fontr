@@ -321,7 +321,7 @@ public final class FontrEngine {
                 FontrSheets created = new FontrSheets(font, FontrSettings.resolution,
                     FontrSettings.styledResolution, FontrSettings.trueStyles, cacheDir,
                     this::openBase, FontrSettings.letterSpacing, FontrSettings.embolden,
-                    FontrSettings.debug);
+                    FontrSettings.scriptScale, FontrSettings.debug);
                 sheets = created;
                 loadedPath = path;
                 String styles = FontrSettings.trueStyles

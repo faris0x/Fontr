@@ -34,9 +34,11 @@ baseline are computed from the font's own letters/descenders so glyphs are not
 clipped by the 8px line.
 
 Unicode pages are fitted **per block**: blocks with taller scripts (Arabic, CJK,
-…) get their own size and baseline inside the 16px cell, so Arabic uses the full
-line instead of being clipped by the Latin metrics. Diacritic marks are excluded
-from the metrics so they cannot shrink an entire block. Fallback glyphs (codepoints missing
+…) get their own size and baseline inside the 16px cell. Sizing uses a high
+percentile of the block's glyph heights (marks excluded) so ordinary letters fill
+the line; rare tall ligatures/marks are squeezed or clipped instead of shrinking
+the whole block. A **Script scale** slider tunes this. Diacritic marks are
+excluded from the metrics so they cannot shrink an entire block. Fallback glyphs (codepoints missing
 from the selected font) are rasterised from the configured system fallback; if
 that also lacks a glyph, the pack's original cell is kept.
 
@@ -82,6 +84,7 @@ Changing a setting reloads resources automatically.
 - **Bold / Italic / Bold-italic font** — optional; empty auto-detects faces.
 - **Glyph scale** — scales the fitted size. `1.0` is the largest size that fits
   the 8px line without clipping; higher values may clip.
+- **Script scale** — scales unicode blocks (Arabic/CJK/…) relative to their fit.
 - **Letter spacing** — extra pixels between glyphs; negative tightens text. The
   default includes vanilla's built-in one-pixel gap.
 - **Letter spacing** — extra pixels between glyphs; negative tightens text.
@@ -91,7 +94,8 @@ Changing a setting reloads resources automatically.
 - **Mipmaps** — mip chain for font textures; turn off to compare sharpness.
 - **Use real bold/italic faces** / **Real styles in Argentum text**.
 - **Fallback** — system font used for codepoints missing from the main font.
-- **Arabic shaping + RTL** — joins Arabic letters and reorders RTL runs.
+- **Arabic shaping + RTL** — joins Arabic letters and reorders RTL runs in
+  vanilla text, PolyCompose HUD text (OneConfig/EvergreenHUD) and measures.
 - **Apply to OneConfig UI** — also register the TTF with PolyCompose so the
   mod menu and OneConfig HUD match.
 - **Debug logging** — logs cache keys, generated pages and resource hits.

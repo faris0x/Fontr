@@ -102,6 +102,16 @@ public final class FontrConfig extends Config {
     )
     public static float embolden = 0.0F;
 
+    @Slider(
+        title = "Script scale",
+        description = "Scales unicode blocks (Arabic, CJK, ...) relative to their fitted size. 1.0 is the default fit.",
+        min = 0.8F,
+        max = 1.5F,
+        step = 0.05F,
+        category = CATEGORY_FONT
+    )
+    public static float scriptScale = 1.0F;
+
     @Switch(
         title = "Antialiasing",
         description = "Smooth glyph edges in the generated sheet. Turn off for pixel fonts.",
@@ -192,6 +202,7 @@ public final class FontrConfig extends Config {
         FontrSettings.fontScale = fontScale;
         FontrSettings.letterSpacing = letterSpacing;
         FontrSettings.embolden = embolden;
+        FontrSettings.scriptScale = scriptScale;
         FontrSettings.antialias = antialias;
         FontrSettings.mipmaps = mipmaps;
         FontrSettings.arabicShaping = arabicShaping;

@@ -26,6 +26,15 @@ public final class ArabicText {
     private ArabicText() {
     }
 
+    /** Transform for HUD/Compose drawing, honouring the Fontr settings. */
+    public static String forHud(String text) {
+        if (!dev.faris0x.fontr.FontrSettings.enabled
+            || !dev.faris0x.fontr.FontrSettings.arabicShaping) {
+            return text;
+        }
+        return transform(text);
+    }
+
     public static String transform(String text) {
         if (text == null || text.isEmpty() || !containsArabic(text)) {
             return text;

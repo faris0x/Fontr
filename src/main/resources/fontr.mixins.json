@@ -8,7 +8,9 @@
 		"MinecraftTickMixin",
 		"TextTransformMixin",
 		"StyleGlyphMixin",
-		"ArgentumTextBatcherMixin"
+		"ArgentumTextBatcherMixin",
+		"HudTextArabicMixin",
+		"EvergreenLabelMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -59,6 +59,7 @@ public final class FontrSheets {
     private final BaseProvider base;
     private final float letterSpacing;
     private final float embolden;
+    private final float scriptScale;
     private final boolean debug;
 
     private final Map<Style, byte[]> styledPng = new HashMap<Style, byte[]>();
@@ -68,7 +69,7 @@ public final class FontrSheets {
 
     public FontrSheets(FontrFont font, int resolution, int styledResolution, boolean trueStyles,
                        Path cacheDir, BaseProvider base, float letterSpacing, float embolden,
-                       boolean debug) {
+                       float scriptScale, boolean debug) {
         this.font = font;
         this.resolution = resolution;
         this.styledResolution = styledResolution;
@@ -77,6 +78,7 @@ public final class FontrSheets {
         this.base = base;
         this.letterSpacing = letterSpacing;
         this.embolden = embolden;
+        this.scriptScale = Math.max(0.5F, Math.min(2.0F, scriptScale));
         this.debug = debug;
         try {
             Files.createDirectories(cacheDir);
@@ -207,13 +209,19 @@ public final class FontrSheets {
             }
             if (!font.canDisplay(codepoint)) {
                 copyCell(graphics, baseImage, index, x, y, cell);
+                int copiedAdvance = copiedAdvance(sheet, x, y, cell);
+                int markerX = x + copiedAdvance * scale - 1;
+                int markerY = y + baseline;
+                if (markerX >= x && markerX < x + cell && markerY >= y && markerY < y + cell) {
+                    sheet.setRGB(markerX, markerY, 0x01FFFFFF);
+                }
                 continue;
             }
 
             int advance = advance(codepoint);
             graphics.setClip(x, y, cell, cell);
             font.drawGlyph(graphics, codepoint, scale, x, y + baseline,
-                (float) (advance - 1) * scale, embolden, style, y, y + cell);
+                (float) (advance - 1) * scale, embolden, style, y, y + cell, 0.8F);
             graphics.setClip(null);
 
             // readFontTexture() derives advances from the rightmost non-transparent
@@ -257,7 +265,8 @@ public final class FontrSheets {
             graphics.fillRect(x, y, UNICODE_CELL, UNICODE_CELL);
             graphics.setColor(Color.WHITE);
             font.drawGlyph(graphics, codepoint, fit.scale, x, y + fit.baseline,
-                (float) fit.advances[offset] * 2.0F, embolden, Style.REGULAR, y, y + UNICODE_CELL);
+                (float) fit.advances[offset] * 2.0F, embolden, Style.REGULAR, y, y + UNICODE_CELL,
+                0.5F);
             graphics.setClip(null);
         }
         graphics.dispose();
@@ -282,7 +291,9 @@ public final class FontrSheets {
     private BlockFit computeBlockFit(int block) {
         int start = block << 8;
         if (block == 0) {
-            BlockFit fit = new BlockFit(1.0F, font.baseline() * 2.0F);
+            // The unicode cell is 16px for an 8px line, so block 0 draws at 2x
+            // to match normal (ASCII-sheet) text when force-unicode is enabled.
+            BlockFit fit = new BlockFit(2.0F, font.baseline() * 2.0F);
             for (int offset = 0x20; offset < 0x100; offset++) {
                 int codepoint = start + offset;
                 if (renderable(codepoint) && font.canDisplay(codepoint)) {
@@ -304,13 +315,10 @@ public final class FontrSheets {
         }
 
         FontRenderContext frc = font.frc();
-        float probeAscent = 0.0F;
-        float probeDescent = 0.0F;
-        for (int i = 0; i < codepoints.size(); i++) {
-            int codepoint = codepoints.get(i);
+        java.util.List<Integer> ascents = new java.util.ArrayList<Integer>();
+        java.util.List<Integer> descents = new java.util.ArrayList<Integer>();
+        for (int codepoint : codepoints) {
             if (isMark(codepoint)) {
-                // Diacritics are positioned by their base letter and often have
-                // extreme standalone bounds; they must not shrink the whole block.
                 continue;
             }
             Font face = font.fontForCodepoint(codepoint).deriveFont(Font.PLAIN, 100.0F);
@@ -319,22 +327,25 @@ public final class FontrSheets {
                 GlyphVector vector = face.layoutGlyphVector(frc, chars, 0, chars.length,
                     Font.LAYOUT_LEFT_TO_RIGHT);
                 Rectangle bounds = vector.getPixelBounds(frc, 0, 0);
-                if (bounds.height <= 0) {
-                    continue;
+                if (bounds.height > 0) {
+                    ascents.add((int) -(float) bounds.y);
+                    descents.add((int) (bounds.y + bounds.height));
                 }
-                probeAscent = Math.max(probeAscent, -(float) bounds.y);
-                probeDescent = Math.max(probeDescent, (float) (bounds.y + bounds.height));
             } catch (Throwable ignored) {
             }
         }
 
-        float total = probeAscent + probeDescent;
-        float blockSize = font.pointSize();
+        float pAscent = percentile(ascents, 0.875F);
+        float pDescent = percentile(descents, 0.75F);
+
+        float total = pAscent + pDescent;
+        float blockSize = font.pointSize() * 2.0F;
         if (total > 0.0F) {
             blockSize = Math.min(blockSize, (UNICODE_CELL - 0.4F) * 100.0F / total);
         }
+        blockSize *= scriptScale;
         float scale = Math.max(0.1F, blockSize / Math.max(1.0F, font.pointSize()));
-        float baseline = total > 0.0F ? (probeAscent / 100.0F) * blockSize : font.baseline() * 2.0F;
+        float baseline = total > 0.0F ? (pAscent / 100.0F) * blockSize : font.baseline() * 2.0F;
         baseline = Math.max(0.0F, Math.min((float) UNICODE_CELL, baseline));
 
         BlockFit fit = new BlockFit(scale, baseline);
@@ -352,7 +363,7 @@ public final class FontrSheets {
                 advance = (int) Math.round(vector.getGlyphPosition(vector.getNumGlyphs()).getX() / 2.0F);
             } catch (Throwable ignored) {
             }
-            fit.advances[offset] = Math.max(1, Math.min(8, advance));
+            fit.advances[offset] = Math.max(1, Math.min(8, advance - 1));
         }
         if (debug) {
             log("Unicode block " + String.format("%02x", block) + " size="
@@ -376,6 +387,36 @@ public final class FontrSheets {
             }
         } catch (Throwable ignored) {
         }
+    }
+
+    private static float percentile(java.util.List<Integer> values, float fraction) {
+        if (values.isEmpty()) {
+            return 0.0F;
+        }
+        java.util.Collections.sort(values);
+        return values.get(Math.min(values.size() - 1, (int) (values.size() * fraction)));
+    }
+
+    private static int copiedAdvance(BufferedImage sheet, int x, int y, int cell) {
+        int right = -1;
+        for (int col = cell - 1; col >= 0; col--) {
+            boolean any = false;
+            for (int row = 0; row < cell; row++) {
+                if ((sheet.getRGB(x + col, y + row) >>> 24) != 0) {
+                    any = true;
+                    break;
+                }
+            }
+            if (any) {
+                right = col;
+                break;
+            }
+        }
+        if (right < 0) {
+            return 2;
+        }
+        int ink = (int) Math.ceil((right + 1) * 8.0 / cell);
+        return Math.max(2, Math.min(8, ink + 1));
     }
 
     private void copyCell(Graphics2D graphics, BufferedImage baseImage, int index,

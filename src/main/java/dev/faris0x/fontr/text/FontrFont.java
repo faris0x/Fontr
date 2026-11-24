@@ -255,7 +255,7 @@ public final class FontrFont {
      */
     public void drawGlyph(Graphics2D graphics, int codepoint, float scale, float x, float y,
                           float maxAdvance, float embolden, Style style,
-                          float cellTop, float cellBottom) {
+                          float cellTop, float cellBottom, float squeezeFloor) {
         Font chosen = faceFor(codepoint, style);
         Font font = chosen.deriveFont(Font.PLAIN, chosen.getSize2D() * scale);
         graphics.setFont(font);
@@ -293,7 +293,7 @@ public final class FontrFont {
                 if (inkBottom > cellBottom) {
                     vertical = Math.min(vertical, (cellBottom - y) / Math.max(1.0F, inkBottom - y));
                 }
-                if (vertical >= 0.8F) {
+                if (vertical >= squeezeFloor) {
                     squeeze = Math.min(squeeze, vertical);
                 }
             }

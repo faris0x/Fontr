@@ -19,6 +19,7 @@ public final class FontrSettings {
     public static volatile float fontScale = 1.0F;
     public static volatile float letterSpacing = 0.0F;
     public static volatile float embolden = 0.0F;
+    public static volatile float scriptScale = 1.0F;
     public static volatile boolean antialias = true;
     public static volatile boolean mipmaps = true;
     public static volatile boolean trueStyles = true;
@@ -29,7 +30,7 @@ public final class FontrSettings {
     public static volatile boolean debug = false;
 
     /** Bump when the sheet builder changes so old caches are ignored. */
-    private static final int SHEET_VERSION = 4;
+    private static final int SHEET_VERSION = 5;
 
     private FontrSettings() {
     }
@@ -38,7 +39,7 @@ public final class FontrSettings {
     public static String sheetKey() {
         return SHEET_VERSION + "|" + fontPath + '|' + boldFont + '|' + italicFont + '|'
             + boldItalicFont + '|' + resolution + '|' + styledResolution + '|'
-            + fontSize + '|' + fontScale + '|' + letterSpacing + '|' + embolden + '|'
+            + fontSize + '|' + fontScale + '|' + letterSpacing + '|' + embolden + '|' + scriptScale + '|'
             + antialias + '|' + trueStyles + '|' + fallback;
     }
 
