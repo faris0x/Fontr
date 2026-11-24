@@ -54,7 +54,7 @@ public final class FontrFont {
         graphics.setFont(base);
         FontMetrics metrics = graphics.getFontMetrics();
         FontRenderContext frc = graphics.getFontRenderContext();
-        int baseline = Math.round(metrics.getAscent());
+        int baseline = Math.max(1, Math.round(metrics.getAscent()) - 1);
         int descent = Math.round(metrics.getDescent());
         graphics.dispose();
 

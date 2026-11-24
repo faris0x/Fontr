@@ -18,6 +18,8 @@ import java.util.Map;
  * Batches glyphs per atlas page and draws the underline/strikethrough pass.
  */
 public final class FontrRenderer {
+    private static boolean DEBUG_DRAWN;
+
     private FontrRenderer() {
     }
 
@@ -72,7 +74,8 @@ public final class FontrRenderer {
         }
 
         GlStateManager.enableBlend();
-        GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.activeTexture(GL13.GL_TEXTURE0);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         GlStateManager.enableTexture();
@@ -82,12 +85,11 @@ public final class FontrRenderer {
         Tesselator tessellator = Tesselator.getInstance();
         BufferBuilder buffer = tessellator.getBuffer();
 
-        boolean debugLogged = false;
         for (Map.Entry<Integer, List<Draw>> page : byTexture.entrySet()) {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, page.getKey());
             GlStateManager.bindTexture(page.getKey());
-            if (FontrConfig.debug && !debugLogged && !page.getValue().isEmpty()) {
-                debugLogged = true;
+            if (FontrConfig.debug && !DEBUG_DRAWN && !page.getValue().isEmpty()) {
+                DEBUG_DRAWN = true;
                 Draw first = page.getValue().get(0);
                 FontrEngine.INSTANCE.log("Draw page: bound=" + GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D)
                     + " enabled=" + GL11.glIsEnabled(GL11.GL_TEXTURE_2D)
@@ -112,6 +114,7 @@ public final class FontrRenderer {
         }
 
         if (!lines.isEmpty()) {
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
             GL11.glDisable(GL11.GL_TEXTURE_2D);
             GlStateManager.disableTexture();
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormat.POSITION_COLOR);
