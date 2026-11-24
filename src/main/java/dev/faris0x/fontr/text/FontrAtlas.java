@@ -18,6 +18,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.imageio.ImageIO;
+import java.io.File;
+import java.nio.file.Path;
 
 /**
  * A small shelf-packed glyph atlas. Rasterisation and GL calls happen only on
@@ -108,6 +111,19 @@ public final class FontrAtlas {
         return page;
     }
 
+    public void dump(Path directory) {
+        try {
+            java.nio.file.Files.createDirectories(directory);
+            for (int i = 0; i < pages.size(); i++) {
+                File out = directory.resolve("atlas-debug-" + i + ".png").toFile();
+                ImageIO.write(pages.get(i).image, "png", out);
+                System.out.println("[Fontr] atlas dump " + out);
+            }
+        } catch (Throwable t) {
+            System.out.println("[Fontr] atlas dump failed: " + t);
+        }
+    }
+
     public void close() {
         for (Page page : pages) {
             if (page.texture != 0) {
@@ -157,7 +173,6 @@ public final class FontrAtlas {
 
         Page() {
             graphics.setComposite(AlphaComposite.Src);
-            int[] empty = new int[1];
             IntBuffer ids = BufferUtils.createIntBuffer(1);
             GL11.glGenTextures(ids);
             texture = ids.get(0);

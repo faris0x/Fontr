@@ -17,6 +17,8 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Runtime facade used by the TextRenderer mixin. Measure/layout paths are
@@ -38,6 +40,8 @@ public final class FontrEngine {
 
     private volatile FontrFont font;
     private volatile FontrAtlas atlas;
+    private final Set<String> loggedLocations = new HashSet<String>();
+    private boolean atlasDumped;
     private String loadedSettings = "";
 
     private boolean resourcePackOverride;
@@ -58,6 +62,14 @@ public final class FontrEngine {
             return false;
         }
         if (fontLocation == null || !fontLocation.toString().endsWith("textures/font/ascii.png")) {
+            if (FontrConfig.debug) {
+                String location = String.valueOf(fontLocation);
+                synchronized (loggedLocations) {
+                    if (loggedLocations.size() < 8 && loggedLocations.add(location)) {
+                        log("Ignoring non-ascii TextRenderer " + location);
+                    }
+                }
+            }
             return false;
         }
 
@@ -102,6 +114,12 @@ public final class FontrEngine {
                 atlas = new FontrAtlas(font);
             }
             FontrRenderer.draw(layout, atlas, x, y, color, shadow, FontrConfig.pixelSnap);
+            if (FontrConfig.debug && !atlasDumped) {
+                atlasDumped = true;
+                atlas.dump(FabricLoader.getInstance().getConfigDir().resolve("Fontr"));
+                log("First render: text=" + text + " glyphs=" + layout.visual.length
+                    + " advance=" + layout.advance + " color=" + Integer.toHexString(color));
+            }
             return layout.advance;
         } catch (Throwable t) {
             log("Render failed: " + t);
