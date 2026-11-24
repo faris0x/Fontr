@@ -93,8 +93,8 @@ public final class FontrConfig extends Config {
     public static boolean applyToPolyCompose = true;
 
     @Switch(
-        title = "Allow resource pack font override",
-        description = "If the active resource pack provides a bitmap font, let it win and render that text with vanilla instead of Fontr.",
+        title = "Let resource pack fonts override Fontr",
+        description = "OFF: Fontr always wins. ON: if the active resource pack ships a bitmap font, Fontr stands down for that text and the pack font is used instead.",
         category = CATEGORY_COMPAT
     )
     public static boolean allowResourcePackFontOverride = false;
