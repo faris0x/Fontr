@@ -54,6 +54,7 @@ public final class LyricsRtl {
                     access.start(placed),
                     access.end(placed),
                     access.text(placed),
+                    access.trimmed(placed),
                     width - (access.x(placed) + access.ink(placed)),
                     access.ink(placed)));
             }
@@ -77,16 +78,36 @@ public final class LyricsRtl {
         private static Access cached;
 
         private final Constructor<?> constructor;
+        private final boolean hasTrimmed;
         private final Method text;
+        private final Method trimmed;
         private final Method x;
         private final Method ink;
         private final Method start;
         private final Method end;
 
         private Access(Class<?> type) throws Exception {
-            constructor = type.getDeclaredConstructor(long.class, long.class, String.class,
-                float.class, float.class);
-            constructor.setAccessible(true);
+            Constructor<?> found;
+            boolean six = true;
+            try {
+                found = type.getDeclaredConstructor(long.class, long.class, String.class,
+                    String.class, float.class, float.class);
+            } catch (NoSuchMethodException e) {
+                six = false;
+                found = type.getDeclaredConstructor(long.class, long.class, String.class,
+                    float.class, float.class);
+            }
+            found.setAccessible(true);
+            constructor = found;
+            hasTrimmed = six;
+            Method trim = null;
+            if (six) {
+                try {
+                    trim = method(type, "getTrimmed");
+                } catch (NoSuchMethodException ignored) {
+                }
+            }
+            trimmed = trim;
             text = method(type, "getText");
             x = method(type, "getX");
             ink = method(type, "getInk");
@@ -95,7 +116,7 @@ public final class LyricsRtl {
         }
 
         private static Method method(Class<?> type, String name) throws Exception {
-            Method method = type.getDeclaredMethod(name);
+            Method method = type.getMethod(name);
             method.setAccessible(true);
             return method;
         }
@@ -149,8 +170,23 @@ public final class LyricsRtl {
             return ((Number) value(placed, end)).longValue();
         }
 
-        Object create(long startMs, long endMs, String value, float x, float ink) {
+        String trimmed(Object placed) {
+            if (trimmed == null) {
+                return text(placed).trim();
+            }
             try {
+                return (String) trimmed.invoke(placed);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        Object create(long startMs, long endMs, String value, String trimmedValue,
+            float x, float ink) {
+            try {
+                if (hasTrimmed) {
+                    return constructor.newInstance(startMs, endMs, value, trimmedValue, x, ink);
+                }
                 return constructor.newInstance(startMs, endMs, value, x, ink);
             } catch (Exception e) {
                 throw new IllegalStateException(e);

@@ -13,9 +13,9 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
  * order, which draws Arabic letters left-to-right. Force the single-mark path
  * for Arabic words so the whole word is shaped and reordered normally.
  *
- * <p>Locals are matched by slot (the class carries a local variable table):
- * slot 57 is the trimmed word, slot 58 is the internal {@code held} flag that
- * selects the per-character path.</p>
+ * <p>Locals are matched by name from the local variable table: {@code trimmed}
+ * is the word and {@code held} selects the per-character path. The slots moved
+ * between EvergreenHUD 3.10.0 and 3.10.1, so names are used.</p>
  */
 @Mixin(targets = "org.polyfrost.evergreenhud.client.hud.media.LyricsHud", remap = false)
 public abstract class LyricsWholeWordMixin {
@@ -24,7 +24,7 @@ public abstract class LyricsWholeWordMixin {
     private static boolean fontr$heldLogged;
     private static boolean fontr$wholeLogged;
 
-    @ModifyVariable(method = "buildFrame", at = @At("STORE"), index = 57,
+    @ModifyVariable(method = "buildFrame", at = @At("STORE"), name = "trimmed",
         remap = false, require = 0)
     private String fontr$record(String value) {
         fontr$word = value;
@@ -35,7 +35,7 @@ public abstract class LyricsWholeWordMixin {
         return value;
     }
 
-    @ModifyVariable(method = "buildFrame", at = @At("STORE"), index = 58,
+    @ModifyVariable(method = "buildFrame", at = @At("STORE"), name = "held",
         remap = false, require = 0)
     private boolean fontr$wholeWord(boolean held) {
         if (!fontr$heldLogged) {
